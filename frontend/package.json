@@ -5,12 +5,13 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npx tailwindcss -i ./src/input.css -o ./dist/output.css"
+    "build": "npx @tailwindcss/cli -i ./src/input.css -o ./dist/output.css"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "tailwindcss": "^3.4.3"
+    "@tailwindcss/cli": "^4.1.16",
+    "tailwindcss": "^4.1.16"
   }
 }
