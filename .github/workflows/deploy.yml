@@ -1,4 +1,4 @@
-name: Deploy
+name: CI
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  deploy:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,23 +18,10 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install Python dependencies
-        run: |
-          cd backend
-          pip install -r requirements.txt
-
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
 
-      - name: Install dependencies and build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
-      - name: Run application
-        run: uvicorn backend.app:app --host 0.0.0.0 --port 8000 &
-
-      # Add your deployment steps here, e.g., deploying to a cloud provider
+      # The build and deploy steps are now handled by Render based on render.yaml.
+      # You can add steps here to run tests in the future.

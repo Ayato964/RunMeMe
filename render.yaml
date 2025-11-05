@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: runmeme
+    env: python
+    plan: free
+    buildCommand: |
+      cd frontend
+      npm install
+      npm run build
+      cd ..
+      pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
