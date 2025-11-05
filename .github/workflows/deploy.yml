@@ -32,6 +32,8 @@ jobs:
         run: |
           cd frontend
           npm install
+          pwd
+          ls -la node_modules/.bin
           npm run build
 
       - name: Run application
