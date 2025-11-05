@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RunMeMe</title>
+    <link href="./dist/output.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <div class="text-center">
+        <h1 class="text-4xl font-bold text-blue-600 mb-4">Welcome to RunMeMe!</h1>
+        <p class="text-lg text-gray-700">This is a placeholder page.</p>
+        <p id="backend-message" class="mt-8 text-md text-green-500 font-semibold"></p>
+    </div>
+    <script>
+        fetch('/api')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('backend-message').innerText = data;
+            })
+            .catch(error => {
+                console.error('Error fetching from backend:', error);
+                document.getElementById('backend-message').innerText = 'Could not connect to backend.';
+            });
+    </script>
+</body>
+</html>
