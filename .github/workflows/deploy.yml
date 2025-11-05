@@ -31,9 +31,7 @@ jobs:
       - name: Install dependencies and build frontend
         run: |
           cd frontend
-          npm install
-          pwd
-          ls -la node_modules/.bin
+          npm ci
           npm run build
 
       - name: Run application
