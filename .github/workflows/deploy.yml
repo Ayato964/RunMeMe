@@ -28,14 +28,10 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install frontend dependencies
+      - name: Install dependencies and build frontend
         run: |
           cd frontend
           npm install
-
-      - name: Build frontend CSS
-        run: |
-          cd frontend
           npm run build
 
       - name: Run application
