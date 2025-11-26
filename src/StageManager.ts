@@ -10,17 +10,17 @@ export class StageManager {
     private stoneImage: HTMLImageElement;
     private soilImage: HTMLImageElement;
 
-    private readonly BLOCK_SIZE = 100; // Define block size
+    private readonly BLOCK_SIZE = 100;
 
     constructor(_config: GameConfig) {
         this.platformImage = new Image();
-        this.platformImage.src = '/assets/soil.png'; // Fallback
+        this.platformImage.src = 'assets/soil.png'; // Fallback
         this.plantImage = new Image();
-        this.plantImage.src = '/assets/plant.png';
+        this.plantImage.src = 'assets/plant.png';
         this.stoneImage = new Image();
-        this.stoneImage.src = '/assets/stone.png';
+        this.stoneImage.src = 'assets/stone.png';
         this.soilImage = new Image();
-        this.soilImage.src = '/assets/soil.png';
+        this.soilImage.src = 'assets/soil.png';
 
         this.reset();
     }

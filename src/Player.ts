@@ -23,9 +23,9 @@ export class Player {
             run2: new Image(),
             stop: new Image()
         };
-        this.images.run1.src = '/assets/chara_run_1.png';
-        this.images.run2.src = '/assets/chara_run_2.png';
-        this.images.stop.src = '/assets/chara_stop.png';
+        this.images.run1.src = 'assets/chara_run_1.png';
+        this.images.run2.src = 'assets/chara_run_2.png';
+        this.images.stop.src = 'assets/chara_stop.png';
     }
 
     public update(dt: number, speedMultiplier: number) {

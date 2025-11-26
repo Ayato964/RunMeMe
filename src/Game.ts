@@ -29,10 +29,10 @@ export class Game {
         this.ctx = this.canvas.getContext('2d')!;
 
         this.bgImage = new Image();
-        this.bgImage.src = '/assets/background.png';
+        this.bgImage.src = 'assets/background.png';
 
         this.scoreBgImage = new Image();
-        this.scoreBgImage.src = '/assets/background_score.png';
+        this.scoreBgImage.src = 'assets/background_score.png';
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -266,12 +266,13 @@ export class Game {
         if (!rankingContainer) {
             const gameOverScreen = document.getElementById('game-over-screen');
             const innerContainer = gameOverScreen?.firstElementChild; // The text-center div
+
             if (innerContainer) {
                 rankingContainer = document.createElement('div');
                 rankingContainer.id = 'ranking-container';
                 rankingContainer.className = 'mt-4 text-left p-6 rounded-xl inline-block relative overflow-hidden border-4 border-yellow-400 shadow-lg';
                 // Add background image via style
-                rankingContainer.style.backgroundImage = "url('/assets/background_score.png')";
+                rankingContainer.style.backgroundImage = "url('assets/background_score.png')";
                 rankingContainer.style.backgroundSize = "cover";
                 rankingContainer.style.backgroundPosition = "center";
 
