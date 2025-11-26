@@ -16,7 +16,7 @@ export class Game {
 
     private config: GameConfig = {
         gravity: 0.5,
-        jumpForce: -10,
+        jumpForce: -13,
         baseSpeed: 5,
         speedIncreaseRate: 0.001
     };
@@ -108,19 +108,25 @@ export class Game {
     }
 
     public start() {
-        this.isPlaying = true;
-        this.score = 0;
-        this.speedMultiplier = 1.0;
-        this.lastTime = performance.now();
+        try {
+            this.isPlaying = true;
+            this.score = 0;
+            this.speedMultiplier = 1.0;
+            this.lastTime = performance.now();
 
-        this.player = new Player(this.config, 100, 300);
-        this.stageManager.reset();
+            this.player = new Player(this.config, 100, 300);
+            this.stageManager.reset();
 
-        document.getElementById('start-screen')?.classList.add('hidden');
-        document.getElementById('game-over-screen')?.classList.add('hidden');
-        document.getElementById('mobile-controls')?.classList.remove('hidden');
+            document.getElementById('start-screen')?.classList.add('hidden');
+            document.getElementById('game-over-screen')?.classList.add('hidden');
+            document.getElementById('mobile-controls')?.classList.remove('hidden');
 
-        requestAnimationFrame((t) => this.loop(t));
+            requestAnimationFrame((t) => this.loop(t));
+        } catch (e) {
+            console.error("Failed to start game:", e);
+            alert("Failed to start game. Please try refreshing the page.");
+            document.getElementById('start-screen')?.classList.remove('hidden');
+        }
     }
 
     public reset() {
