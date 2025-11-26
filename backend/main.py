@@ -40,7 +40,7 @@ async def get_scores():
     return scores_db[:10]
 
 @app.get("/stage/random")
-async def get_random_stage():
+async def get_random_stage(exclude_id: str = None):
     stages_dir = "backend/stages"
     if not os.path.exists(stages_dir):
         raise HTTPException(status_code=500, detail="Stages directory not found")
@@ -49,7 +49,17 @@ async def get_random_stage():
     if not files:
         raise HTTPException(status_code=404, detail="No stages found")
     
-    random_file = random.choice(files)
+    # Filter out excluded stage if possible
+    available_files = files
+    if exclude_id:
+        # Assuming filename matches ID (e.g., flat.json -> flat)
+        available_files = [f for f in files if f != f"{exclude_id}.json"]
+    
+    # If filtering removed all files (e.g. only 1 stage exists), fallback to all files
+    if not available_files:
+        available_files = files
+    
+    random_file = random.choice(available_files)
     with open(os.path.join(stages_dir, random_file), 'r') as f:
         stage_data = json.load(f)
     

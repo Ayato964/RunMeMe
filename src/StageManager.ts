@@ -11,6 +11,7 @@ export class StageManager {
     private soilImage: HTMLImageElement;
 
     private readonly BLOCK_SIZE = 100;
+    private lastChunkId: string | null = null;
 
     constructor(_config: GameConfig) {
         this.platformImage = new Image();
@@ -28,6 +29,7 @@ export class StageManager {
     public reset() {
         this.totalDistance = 0;
         this.activeElements = [];
+        this.lastChunkId = null;
         // Initial platform - Always start with flat ground
         this.fetchAndAddChunk(0, true);
         this.fetchAndAddChunk(800, true);
@@ -67,12 +69,21 @@ export class StageManager {
 
     private async fetchAndAddChunk(startX: number, isStart: boolean = false) {
         try {
-            const url = isStart ? `${API_BASE_URL}/stage/start` : `${API_BASE_URL}/stage/random`;
+            let url = isStart ? `${API_BASE_URL}/stage/start` : `${API_BASE_URL}/stage/random`;
+            if (!isStart && this.lastChunkId) {
+                url += `?exclude_id=${this.lastChunkId}`;
+            }
+
             const response = await fetch(url, {
                 headers: { 'ngrok-skip-browser-warning': 'true' }
             });
             if (!response.ok) throw new Error('Failed to fetch stage');
             const chunk: ChunkDef = await response.json();
+
+            if (chunk.id) {
+                this.lastChunkId = chunk.id;
+            }
+
             this.addChunk(chunk, startX);
         } catch (error) {
             console.error("Error fetching chunk:", error);
