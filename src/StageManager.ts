@@ -1,4 +1,5 @@
 import type { ChunkDef, ChunkElement, GameConfig } from './types';
+import { API_BASE_URL } from './config';
 
 export class StageManager {
     private activeElements: ChunkElement[] = [];
@@ -66,8 +67,10 @@ export class StageManager {
 
     private async fetchAndAddChunk(startX: number, isStart: boolean = false) {
         try {
-            const url = isStart ? 'http://localhost:8000/stage/start' : 'http://localhost:8000/stage/random';
-            const response = await fetch(url);
+            const url = isStart ? `${API_BASE_URL}/stage/start` : `${API_BASE_URL}/stage/random`;
+            const response = await fetch(url, {
+                headers: { 'ngrok-skip-browser-warning': 'true' }
+            });
             if (!response.ok) throw new Error('Failed to fetch stage');
             const chunk: ChunkDef = await response.json();
             this.addChunk(chunk, startX);

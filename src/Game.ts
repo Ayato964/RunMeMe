@@ -1,23 +1,24 @@
 import type { GameConfig } from './types';
 import { Player } from './Player';
 import { StageManager } from './StageManager';
+import { API_BASE_URL } from './config';
 
 export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private lastTime: number = 0;
     private isPlaying: boolean = false;
-    private speedMultiplier: number = 1.0;
     private score: number = 0;
+    private speedMultiplier: number = 1.0;
 
     private player: Player;
     private stageManager: StageManager;
 
     private config: GameConfig = {
         gravity: 0.5,
-        jumpForce: -12,
+        jumpForce: -10,
         baseSpeed: 5,
-        speedIncreaseRate: 0.0001 // Unused now, using level-based
+        speedIncreaseRate: 0.001
     };
 
     private bgImage: HTMLImageElement;
@@ -65,7 +66,6 @@ export class Game {
         });
 
         // Mobile Jump Support
-        // Add a transparent overlay or just use the canvas for touch
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault(); // Prevent scrolling
             if (this.isPlaying) {
@@ -94,8 +94,6 @@ export class Game {
             document.getElementById('rankings-screen')?.classList.add('hidden');
         });
 
-        // Add jump button for mobile UI if needed, but touch on canvas is better.
-        // Let's also add a specific jump button for clarity on mobile
         const jumpBtn = document.getElementById('mobile-jump-btn');
         if (jumpBtn) {
             jumpBtn.addEventListener('touchstart', (e) => {
@@ -236,14 +234,19 @@ export class Game {
 
         // Submit score
         try {
-            await fetch('http://localhost:8000/scores', {
+            await fetch(`${API_BASE_URL}/scores`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true'
+                },
                 body: JSON.stringify({ score: finalScore, name: playerName })
             });
 
             // Fetch rankings
-            const res = await fetch('http://localhost:8000/scores');
+            const res = await fetch(`${API_BASE_URL}/scores`, {
+                headers: { 'ngrok-skip-browser-warning': 'true' }
+            });
             const rankings = await res.json();
             this.displayRankings(rankings);
         } catch (e) {
@@ -288,7 +291,9 @@ export class Game {
             list.innerHTML = '<p class="text-white text-4xl font-black animate-pulse">LOADING...</p>';
 
             try {
-                const res = await fetch('http://localhost:8000/scores');
+                const res = await fetch(`${API_BASE_URL}/scores`, {
+                    headers: { 'ngrok-skip-browser-warning': 'true' }
+                });
                 const rankings = await res.json();
 
                 if (rankings.length === 0) {
