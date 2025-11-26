@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Run Me Me</title>
+  </head>
+  <body class="bg-gray-900 text-white overflow-hidden select-none">
+    <div id="app" class="relative w-full h-full">
+      <!-- Game Canvas -->
+      <canvas id="gameCanvas" class="block w-full h-full"></canvas>
+
+      <!-- UI Overlay -->
+      <div id="ui-layer" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-4">
+        <!-- HUD -->
+        <div class="flex justify-between items-start">
+          <div class="bg-black/50 p-2 rounded">
+            <div class="text-sm text-gray-400">SCORE</div>
+            <div id="score-display" class="text-2xl font-bold font-mono">000000</div>
+          </div>
+          <div class="bg-black/50 p-2 rounded">
+            <div class="text-sm text-gray-400">SPEED</div>
+            <div id="speed-display" class="text-xl font-bold font-mono">1.0x</div>
+          </div>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="absolute inset-0 flex items-center justify-center bg-black/70 pointer-events-auto">
+          <div class="text-center">
+            <h1 class="text-6xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">Run Me Me</h1>
+            <p class="text-xl mb-8 text-gray-300">Press SPACE to Jump</p>
+            <button id="start-btn" class="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full text-xl font-bold hover:scale-105 transition-transform">
+              START GAME
+            </button>
+          </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="hidden absolute inset-0 flex items-center justify-center bg-black/80 pointer-events-auto">
+          <div class="text-center">
+            <h2 class="text-5xl font-bold mb-4 text-red-500">GAME OVER</h2>
+            <p class="text-2xl mb-8">Final Score: <span id="final-score">0</span></p>
+            <button id="restart-btn" class="px-8 py-3 bg-white text-black rounded-full text-xl font-bold hover:scale-105 transition-transform">
+              TRY AGAIN
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
