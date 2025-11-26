@@ -9,10 +9,13 @@ export class StageManager {
     private plantImage: HTMLImageElement;
     private stoneImage: HTMLImageElement;
     private soilImage: HTMLImageElement;
+    private flowerImage: HTMLImageElement;
 
     private readonly BLOCK_SIZE = 100;
     private lastChunkId: string | null = null;
     private isFetching: boolean = false;
+
+    private chunkQueue: ChunkDef[] = [];
 
     constructor(_config: GameConfig) {
         this.platformImage = new Image();
@@ -23,6 +26,8 @@ export class StageManager {
         this.stoneImage.src = 'assets/stone.png';
         this.soilImage = new Image();
         this.soilImage.src = 'assets/soil.png';
+        this.flowerImage = new Image();
+        this.flowerImage.src = 'assets/flower.png';
 
         this.reset();
     }
@@ -32,6 +37,7 @@ export class StageManager {
         this.activeElements = [];
         this.lastChunkId = null;
         this.isFetching = false;
+        this.chunkQueue = [];
         // Initial platform - Always start with flat ground
         this.fetchAndAddChunk(0, true);
         this.fetchAndAddChunk(800, true);
@@ -56,8 +62,6 @@ export class StageManager {
         const lastElement = this.activeElements[this.activeElements.length - 1];
         // Generate well ahead of the screen (e.g., 2500px) to hide loading
         if (lastElement && lastElement.x < 2500) {
-            if (this.isFetching) return;
-
             // Find the rightmost x position
             let maxX = -Infinity;
             this.activeElements.forEach(el => {
@@ -67,38 +71,45 @@ export class StageManager {
             // If no elements, start at screen edge (shouldn't happen with proper init)
             if (maxX === -Infinity) maxX = 800;
 
-            this.fetchAndAddChunk(maxX);
+            if (this.chunkQueue.length > 0) {
+                const chunk = this.chunkQueue.shift()!;
+                this.addChunk(chunk, maxX);
+                if (chunk.id) this.lastChunkId = chunk.id;
+            } else if (!this.isFetching) {
+                this.fetchAndAddChunk(maxX);
+            }
         }
     }
 
     private async fetchAndAddChunk(startX: number, isStart: boolean = false) {
-        if (this.isFetching && !isStart) return; // Allow initial fetches to proceed or handle differently? 
-        // Actually, for initial fetches we might call it multiple times synchronously. 
-        // But since they are distinct calls (0, 800, 1600), we should probably allow them.
-        // However, the `update` loop calls this repeatedly.
-        // Let's rely on the check in `update` for the loop, and here just set the flag.
-        // But wait, `reset` calls it 3 times. If we lock it, only the first one might succeed if we are strict.
-        // Let's make `isFetching` only block the `update` loop generation.
-
+        if (this.isFetching && !isStart) return;
         this.isFetching = true;
 
         try {
-            let url = isStart ? `${API_BASE_URL}/stage/start` : `${API_BASE_URL}/stage/random`;
+            let url = isStart ? `${API_BASE_URL}/stage/start` : `${API_BASE_URL}/stage/random?count=20`;
             if (!isStart && this.lastChunkId) {
-                url += `?exclude_id=${this.lastChunkId}`;
+                url += `&exclude_id=${this.lastChunkId}`;
             }
 
             const response = await fetch(url, {
                 headers: { 'ngrok-skip-browser-warning': 'true' }
             });
             if (!response.ok) throw new Error('Failed to fetch stage');
-            const chunk: ChunkDef = await response.json();
 
-            if (chunk.id) {
-                this.lastChunkId = chunk.id;
+            if (isStart) {
+                const chunk: ChunkDef = await response.json();
+                if (chunk.id) this.lastChunkId = chunk.id;
+                this.addChunk(chunk, startX);
+            } else {
+                const chunks: ChunkDef[] = await response.json();
+                this.chunkQueue.push(...chunks);
+                // Add the first one immediately if needed
+                if (this.chunkQueue.length > 0) {
+                    const chunk = this.chunkQueue.shift()!;
+                    if (chunk.id) this.lastChunkId = chunk.id;
+                    this.addChunk(chunk, startX);
+                }
             }
-
-            this.addChunk(chunk, startX);
         } catch (error) {
             console.error("Error fetching chunk:", error);
             // Fallback: Add a flat chunk if fetch fails to prevent softlock
@@ -148,7 +159,7 @@ export class StageManager {
 
                         this.activeElements.push({
                             type: 'decoration',
-                            subtype: isPlant ? 'plant' : 'stone',
+                            subtype: isPlant ? 'flower' : 'stone',
                             x: decoX,
                             y: decoY,
                             width: decoWidth,
@@ -196,7 +207,10 @@ export class StageManager {
                     }
                 }
             } else if (el.type === 'decoration') {
-                const img = el.subtype === 'plant' ? this.plantImage : this.stoneImage;
+                let img = this.stoneImage;
+                if (el.subtype === 'plant') img = this.plantImage;
+                else if (el.subtype === 'flower') img = this.flowerImage;
+
                 if (img.complete) {
                     ctx.drawImage(img, el.x, el.y, el.width, el.height);
                 }
@@ -206,5 +220,9 @@ export class StageManager {
 
     public getElements() {
         return this.activeElements;
+    }
+
+    public getTotalDistance() {
+        return this.totalDistance;
     }
 }

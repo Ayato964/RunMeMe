@@ -62,6 +62,25 @@ export class Player {
         }
     }
 
+    public getRect(): Rect {
+        return {
+            x: this.position.x,
+            y: this.position.y - this.size.height,
+            width: this.size.width,
+            height: this.size.height
+        };
+    }
+
+    public land(y: number) {
+        this.position.y = y;
+        this.velocity.y = 0;
+        this.isGrounded = true;
+    }
+
+    public setGrounded(grounded: boolean) {
+        this.isGrounded = grounded;
+    }
+
     public draw(ctx: CanvasRenderingContext2D) {
         let img = this.images.stop;
 

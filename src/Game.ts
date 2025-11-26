@@ -1,389 +1,410 @@
-import type { GameConfig } from './types';
-import { Player } from './Player';
 import { StageManager } from './StageManager';
-import { API_BASE_URL, LOGICAL_HEIGHT } from './config';
+import { Player } from './Player';
+import { API_BASE_URL, LOGICAL_HEIGHT, LOGICAL_WIDTH } from './config';
+import type { GameConfig } from './types';
 
 export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
+    private stageManager: StageManager;
+    private player: Player;
     private lastTime: number = 0;
-    private isPlaying: boolean = false;
+    private gameLoopId: number | null = null;
+    private isGameOver: boolean = false;
     private score: number = 0;
     private speedMultiplier: number = 1.0;
+    private scrollSpeed: number = 6; // pixels per frame (approx 60fps)
 
-    private player: Player;
-    private stageManager: StageManager;
+    private backgroundImage: HTMLImageElement;
+    private backgroundScoreImage: HTMLImageElement;
 
-    private config: GameConfig = {
-        gravity: 0.5,
-        jumpForce: -13,
-        baseSpeed: 5,
-        speedIncreaseRate: 0.001
+    // Scaling properties
+    private scale: number = 1;
+    private offsetX: number = 0;
+    private offsetY: number = 0;
+
+    private readonly config: GameConfig = {
+        gravity: 0.6, // Reasonable gravity
+        jumpForce: -15, // Jump force
+        baseSpeed: 6, // Base speed
+        speedIncreaseRate: 0.1 // Slower speed increase
     };
-
-    private bgImage: HTMLImageElement;
-    private scoreBgImage: HTMLImageElement;
 
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
 
-        this.bgImage = new Image();
-        this.bgImage.src = 'assets/background.png';
-
-        this.scoreBgImage = new Image();
-        this.scoreBgImage.src = 'assets/background_score.png';
+        this.backgroundImage = new Image();
+        this.backgroundImage.src = 'assets/background.png';
+        this.backgroundScoreImage = new Image();
+        this.backgroundScoreImage.src = 'assets/background_score.png';
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        this.player = new Player(this.config, 100, 300);
         this.stageManager = new StageManager(this.config);
+        this.player = new Player(this.config, 100, LOGICAL_HEIGHT - 300); // Start position
 
-        this.setupInputs();
-    }
-
-    private resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-    }
-
-    private setupInputs() {
+        // Input handling
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
-                if (!this.isPlaying) {
-                    // Start game handled by button
+                if (this.isGameOver) {
+                    this.reset();
                 } else {
                     this.player.jump();
                 }
             }
         });
 
-        window.addEventListener('keyup', (e) => {
-            if (e.code === 'Space' && this.isPlaying) {
-                this.player.stopJump();
-            }
-        });
-
-        // Mobile Jump Support
+        // Touch handling
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault(); // Prevent scrolling
-            if (this.isPlaying) {
+            if (this.isGameOver) {
+                this.reset();
+            } else {
                 this.player.jump();
             }
         }, { passive: false });
 
-        this.canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            if (this.isPlaying) {
-                this.player.stopJump();
-            }
-        }, { passive: false });
-
+        // UI Event Listeners
         const startBtn = document.getElementById('start-btn');
-        startBtn?.addEventListener('click', () => this.start());
-
-        const restartBtn = document.getElementById('restart-btn');
-        restartBtn?.addEventListener('click', () => this.reset());
+        if (startBtn) {
+            startBtn.addEventListener('click', () => this.start());
+        }
 
         const rankingsBtn = document.getElementById('rankings-btn');
-        rankingsBtn?.addEventListener('click', () => this.showRankings());
+        if (rankingsBtn) {
+            rankingsBtn.addEventListener('click', () => this.showRankings());
+        }
 
         const closeRankingsBtn = document.getElementById('close-rankings-btn');
-        closeRankingsBtn?.addEventListener('click', () => {
-            document.getElementById('rankings-screen')?.classList.add('hidden');
-        });
+        if (closeRankingsBtn) {
+            closeRankingsBtn.addEventListener('click', () => {
+                const rankingsScreen = document.getElementById('rankings-screen');
+                if (rankingsScreen) rankingsScreen.classList.add('hidden');
+            });
+        }
 
+        const restartBtn = document.getElementById('restart-btn');
+        if (restartBtn) {
+            restartBtn.addEventListener('click', () => this.reset());
+        }
+
+        // Mobile Jump Button
         const jumpBtn = document.getElementById('mobile-jump-btn');
         if (jumpBtn) {
             jumpBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                if (this.isPlaying) this.player.jump();
-            });
-            jumpBtn.addEventListener('touchend', (e) => {
+                if (this.isGameOver) {
+                    this.reset();
+                } else {
+                    this.player.jump();
+                }
+            }, { passive: false });
+
+            // Also handle click for testing on desktop
+            jumpBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                if (this.isPlaying) this.player.stopJump();
+                if (this.isGameOver) {
+                    this.reset();
+                } else {
+                    this.player.jump();
+                }
             });
         }
     }
 
-    public start() {
+    private resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+
+        // Calculate scale to fit 16:9 aspect ratio within the window
+        const scaleX = this.canvas.width / LOGICAL_WIDTH;
+        const scaleY = this.canvas.height / LOGICAL_HEIGHT;
+        this.scale = Math.min(scaleX, scaleY);
+
+        this.offsetX = (this.canvas.width - LOGICAL_WIDTH * this.scale) / 2;
+        this.offsetY = (this.canvas.height - LOGICAL_HEIGHT * this.scale) / 2;
+    }
+
+    public async start() {
         try {
-            this.isPlaying = true;
-            this.score = 0;
-            this.speedMultiplier = 1.0;
-            this.lastTime = performance.now();
-
-            this.player = new Player(this.config, 100, 300);
-            this.stageManager.reset();
-
-            document.getElementById('start-screen')?.classList.add('hidden');
-            document.getElementById('game-over-screen')?.classList.add('hidden');
-            document.getElementById('mobile-controls')?.classList.remove('hidden');
-
-            requestAnimationFrame((t) => this.loop(t));
-        } catch (e) {
-            console.error("Failed to start game:", e);
-            alert("Failed to start game. Please try refreshing the page.");
-            document.getElementById('start-screen')?.classList.remove('hidden');
+            this.reset();
+        } catch (error) {
+            console.error("Game start error:", error);
+            alert("Failed to start game. Please refresh.");
         }
     }
 
-    public reset() {
-        this.start();
+    private reset() {
+        this.isGameOver = false;
+        this.score = 0;
+        this.speedMultiplier = 1.0;
+        this.timeSinceLastSpeedIncrease = 0;
+        this.stageManager.reset();
+        this.player = new Player(this.config, 100, LOGICAL_HEIGHT - 300);
+
+        // Hide rankings
+        const rankingsEl = document.getElementById('rankings-screen');
+        if (rankingsEl) rankingsEl.classList.add('hidden');
+
+        // Hide start screen
+        const startScreen = document.getElementById('start-screen');
+        if (startScreen) startScreen.style.display = 'none';
+
+        // Hide Game Over screen
+        const gameOverScreen = document.getElementById('game-over-screen');
+        if (gameOverScreen) gameOverScreen.classList.add('hidden');
+
+        // Show mobile controls
+        const mobileControls = document.getElementById('mobile-controls');
+        if (mobileControls) mobileControls.style.display = 'flex';
+
+        this.lastTime = performance.now();
+        this.loop(this.lastTime);
     }
 
     private loop(timestamp: number) {
-        if (!this.isPlaying) return;
+        if (this.isGameOver) return;
 
         const dt = timestamp - this.lastTime;
         this.lastTime = timestamp;
 
+        // Update
         this.update(dt);
+
+        // Draw
         this.draw();
 
-        requestAnimationFrame((t) => this.loop(t));
+        this.gameLoopId = requestAnimationFrame((t) => this.loop(t));
     }
+
+    private timeSinceLastSpeedIncrease: number = 0;
 
     private update(dt: number) {
-        // Level-based speed: +0.1 every 1000 score
-        this.speedMultiplier = 1.0 + Math.floor(this.score / 1000) * 0.1;
+        // Increase speed every 8 seconds
+        this.timeSinceLastSpeedIncrease += dt;
+        if (this.timeSinceLastSpeedIncrease > 8000) {
+            this.speedMultiplier += this.config.speedIncreaseRate;
+            this.timeSinceLastSpeedIncrease = 0;
 
-        // Update score
-        this.score += (this.config.baseSpeed * this.speedMultiplier) * (dt / 16);
-
-        // Update entities
-        this.stageManager.update(dt, this.speedMultiplier, this.config.baseSpeed);
-        this.player.update(dt, this.speedMultiplier);
-
-        // Collision Detection
-        this.checkCollisions();
-
-        // Check Game Over
-        if (this.player.position.y > LOGICAL_HEIGHT) {
-            this.gameOver();
+            // Visual feedback for speed up could be added here
+            const speedDisplay = document.getElementById('speed-display');
+            if (speedDisplay) {
+                speedDisplay.innerText = this.speedMultiplier.toFixed(3) + 'x';
+                speedDisplay.classList.add('text-yellow-400', 'scale-125');
+                setTimeout(() => {
+                    speedDisplay.classList.remove('text-yellow-400', 'scale-125');
+                }, 500);
+            }
         }
 
-        // Update UI
-        this.updateUI();
-    }
+        this.stageManager.update(dt, this.speedMultiplier, this.scrollSpeed);
+        this.player.update(dt, this.speedMultiplier);
 
-    private checkCollisions() {
-        const playerRect = {
-            x: this.player.position.x,
-            y: this.player.position.y - this.player.size.height,
-            width: this.player.size.width,
-            height: this.player.size.height
-        };
-
+        // Collision detection
         const elements = this.stageManager.getElements();
-        let onGround = false;
+        const playerRect = this.player.getRect();
 
+        // Check for ground collision
+        let onGround = false;
         for (const el of elements) {
             if (el.type === 'platform') {
-                // Simple AABB collision
                 if (
                     playerRect.x < el.x + el.width &&
                     playerRect.x + playerRect.width > el.x &&
-                    playerRect.y < el.y + el.height &&
-                    playerRect.y + playerRect.height > el.y
+                    playerRect.y + playerRect.height > el.y &&
+                    playerRect.y < el.y + el.height
                 ) {
-                    // Collision detected
-                    // Determine side
-                    const overlapX = Math.min(playerRect.x + playerRect.width - el.x, el.x + el.width - playerRect.x);
-                    const overlapY = Math.min(playerRect.y + playerRect.height - el.y, el.y + el.height - playerRect.y);
-
-                    // Check if landing on top
-                    // We are on top if our previous bottom was above the platform's top (with tolerance)
-                    // AND we are falling or stationary
-                    const wasAbove = playerRect.y + playerRect.height - this.player.velocity.y <= el.y + 20;
-
-                    if (wasAbove && this.player.velocity.y >= 0) {
-                        // Landing on top
-                        this.player.position.y = el.y;
-                        this.player.velocity.y = 0;
-                        this.player.isGrounded = true;
+                    // Collision
+                    // Simple resolution: if falling and above, land
+                    if (this.player.velocity.y >= 0 && playerRect.y + playerRect.height - this.player.velocity.y <= el.y + 10) {
+                        this.player.land(el.y);
                         onGround = true;
-                    } else {
-                        // Not landing on top
-                        if (overlapY < overlapX) {
-                            // Vertical collision (hitting head)
-                            if (this.player.velocity.y < 0) {
-                                this.player.position.y = el.y + el.height + this.player.size.height;
-                                this.player.velocity.y = 0;
-                            }
-                        } else {
-                            // Horizontal collision (Game Over)
-                            this.gameOver();
-                        }
+                    }
+                    // Side collision (death)
+                    else if (playerRect.x + playerRect.width > el.x + 10) {
+                        this.gameOver();
                     }
                 }
             }
         }
 
         if (!onGround) {
-            this.player.isGrounded = false;
+            this.player.setGrounded(false);
+        }
+
+        // Score update (distance based)
+        // 1 pixel = 1 point roughly, maybe scaled down
+        this.score = Math.floor(this.stageManager.getTotalDistance() / 10);
+
+        // Check fall off
+        if (this.player.position.y > LOGICAL_HEIGHT) {
+            this.gameOver();
         }
     }
 
-    private async gameOver() {
-        this.isPlaying = false;
-        document.getElementById('game-over-screen')?.classList.remove('hidden');
-        document.getElementById('mobile-controls')?.classList.add('hidden');
-        const finalScoreEl = document.getElementById('final-score');
-        const finalScore = Math.floor(this.score);
-        if (finalScoreEl) finalScoreEl.textContent = finalScore.toString();
+    private draw() {
+        // Clear screen with black (for letterboxing)
+        this.ctx.fillStyle = 'black';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Get player name from input (to be added)
+        this.ctx.save();
+
+        // Apply scaling and centering
+        this.ctx.translate(this.offsetX, this.offsetY);
+        this.ctx.scale(this.scale, this.scale);
+
+        // Clip to logical area to prevent drawing outside
+        this.ctx.beginPath();
+        this.ctx.rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        this.ctx.clip();
+
+        // Draw Background
+        if (this.backgroundImage.complete) {
+            // Draw background to cover the logical area
+            this.ctx.drawImage(this.backgroundImage, 0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        } else {
+            this.ctx.fillStyle = '#87CEEB'; // Sky blue fallback
+            this.ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        }
+
+        this.stageManager.draw(this.ctx);
+        this.player.draw(this.ctx);
+
+        // Draw Score
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = 'bold 30px "Comic Sans MS", "Chalkboard SE", sans-serif';
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeText(`Score: ${Math.floor(this.score)}`, 20, 50);
+        this.ctx.fillText(`Score: ${Math.floor(this.score)}`, 20, 50);
+
+        this.ctx.restore();
+    }
+
+    private gameOver() {
+        this.isGameOver = true;
+        if (this.gameLoopId) {
+            cancelAnimationFrame(this.gameLoopId);
+        }
+
+        // Hide mobile controls
+        const mobileControls = document.getElementById('mobile-controls');
+        if (mobileControls) mobileControls.style.display = 'none';
+
+        // Get player name from input (entered at start)
         const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
         const playerName = nameInput?.value || "Player";
 
-        // Submit score
-        try {
-            await fetch(`${API_BASE_URL}/scores`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'ngrok-skip-browser-warning': 'true'
-                },
-                body: JSON.stringify({ score: finalScore, name: playerName })
-            });
+        // Submit score automatically
+        fetch(`${API_BASE_URL}/scores`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+            },
+            body: JSON.stringify({ score: Math.floor(this.score), name: playerName })
+        }).then(() => {
+            // Show Rankings immediately
+            this.showRankings(true); // true = isGameOver
 
-            // Fetch rankings
-            const res = await fetch(`${API_BASE_URL}/scores`, {
-                headers: { 'ngrok-skip-browser-warning': 'true' }
-            });
-            const rankings = await res.json();
-            this.displayRankings(rankings);
-        } catch (e) {
-            console.error("Failed to submit score or fetch rankings", e);
-        }
+            // Auto-return to title after 3 seconds
+            setTimeout(() => {
+                // Ensure we are still in game over state (user didn't click restart manually)
+                if (this.isGameOver) {
+                    this.returnToTitle();
+                }
+            }, 3000);
+
+        }).catch(err => {
+            console.error("Failed to submit score:", err);
+            this.showRankings(true);
+            setTimeout(() => {
+                if (this.isGameOver) {
+                    this.returnToTitle();
+                }
+            }, 3000);
+        });
     }
 
-    private displayRankings(rankings: { name: string, score: number }[]) {
-        // Create or update ranking list in DOM
-        let rankingContainer = document.getElementById('ranking-container');
-        if (!rankingContainer) {
-            const gameOverScreen = document.getElementById('game-over-screen');
-            const innerContainer = gameOverScreen?.firstElementChild; // The text-center div
+    private returnToTitle() {
+        this.isGameOver = false; // Reset flag but don't start loop
+        if (this.gameLoopId) {
+            cancelAnimationFrame(this.gameLoopId);
+            this.gameLoopId = null;
+        }
 
-            if (innerContainer) {
-                rankingContainer = document.createElement('div');
-                rankingContainer.id = 'ranking-container';
-                rankingContainer.className = 'mt-4 text-left p-6 rounded-xl inline-block relative overflow-hidden border-4 border-yellow-400 shadow-lg';
-                // Add background image via style
-                rankingContainer.style.backgroundImage = "url('assets/background_score.png')";
-                rankingContainer.style.backgroundSize = "cover";
-                rankingContainer.style.backgroundPosition = "center";
+        // Hide rankings
+        const rankingsEl = document.getElementById('rankings-screen');
+        if (rankingsEl) rankingsEl.classList.add('hidden');
 
-                innerContainer.appendChild(rankingContainer);
+        // Hide Game Over screen
+        const gameOverScreen = document.getElementById('game-over-screen');
+        if (gameOverScreen) gameOverScreen.classList.add('hidden');
+
+        // Show start screen
+        const startScreen = document.getElementById('start-screen');
+        if (startScreen) startScreen.style.display = 'flex'; // Restore flex display
+
+        // Hide mobile controls
+        const mobileControls = document.getElementById('mobile-controls');
+        if (mobileControls) mobileControls.style.display = 'none';
+    }
+
+    public async showRankings(isGameOver: boolean = false) {
+        const rankingsEl = document.getElementById('rankings-screen');
+        const rankingsList = document.getElementById('rankings-list');
+
+        if (rankingsEl && rankingsList) {
+            rankingsList.innerHTML = '<div class="text-4xl font-black text-white animate-pulse">LOADING...</div>';
+            rankingsEl.classList.remove('hidden');
+
+            // Add Game Over title if applicable
+            if (isGameOver) {
+                const title = document.createElement('h2');
+                title.className = "text-6xl font-black text-red-500 mb-4 drop-shadow-[4px_4px_0_#000] transform -rotate-3";
+                title.innerText = "GAME OVER";
+                rankingsList.innerHTML = '';
+                rankingsList.appendChild(title);
+
+                const scoreDisplay = document.createElement('div');
+                scoreDisplay.className = "text-4xl font-bold text-white mb-8 drop-shadow-[2px_2px_0_#000]";
+                scoreDisplay.innerText = `SCORE: ${Math.floor(this.score)}`;
+                rankingsList.appendChild(scoreDisplay);
+            } else {
+                rankingsList.innerHTML = '<h2 class="text-6xl font-black text-yellow-400 mb-8 drop-shadow-[4px_4px_0_#000] transform -rotate-3">RANKING</h2>';
             }
-        }
-
-        if (rankingContainer) {
-            rankingContainer.innerHTML = `
-                <h3 class="text-2xl font-black mb-4 text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] text-center uppercase tracking-wider" style="font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;">🏆 Top Scores 🏆</h3>
-                <ol class="list-decimal list-inside space-y-2 text-white font-bold text-lg drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
-                    ${rankings.map(r => `<li>${r.name}: <span class="text-yellow-300">${r.score}</span></li>`).join('')}
-                </ol>
-            `;
-        }
-    }
-
-    private async showRankings() {
-        const screen = document.getElementById('rankings-screen');
-        const list = document.getElementById('rankings-list');
-        if (screen && list) {
-            screen.classList.remove('hidden');
-            list.innerHTML = '<p class="text-white text-4xl font-black animate-pulse">LOADING...</p>';
 
             try {
                 const res = await fetch(`${API_BASE_URL}/scores`, {
                     headers: { 'ngrok-skip-browser-warning': 'true' }
                 });
-                const rankings = await res.json();
+                const scores = await res.json();
 
-                if (rankings.length === 0) {
-                    list.innerHTML = '<p class="text-white text-4xl font-black">NO SCORES YET!</p>';
-                    return;
-                }
+                const listContainer = document.createElement('div');
+                listContainer.className = "w-full max-w-2xl bg-white/90 border-4 border-black rounded-xl p-6 shadow-[8px_8px_0_#000] transform rotate-1";
 
-                list.innerHTML = '';
-
-                const title = document.createElement('h2');
-                title.className = "text-6xl md:text-8xl font-black text-yellow-400 mb-12 drop-shadow-[4px_4px_0_#000] -skew-x-6 tracking-widest";
-                title.textContent = "TOP RANKINGS";
-                list.appendChild(title);
-
-                const ol = document.createElement('ol');
-                ol.className = 'space-y-6 w-full max-w-2xl mx-auto';
-                rankings.forEach((r: any, i: number) => {
-                    const li = document.createElement('li');
-                    // Anime style list items
-                    const rankColor = i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : i === 2 ? 'text-orange-400' : 'text-white';
-                    const bgClass = i < 3 ? 'bg-black/40' : 'bg-black/20';
-
-                    li.className = `flex items-center justify-between p-4 rounded-xl border-b-4 border-black ${bgClass} backdrop-blur-sm transform hover:scale-105 transition-transform`;
-                    li.innerHTML = `
+                listContainer.innerHTML = scores.map((s: any, i: number) => `
+                    <div class="flex justify-between items-center mb-4 border-b-2 border-dashed border-gray-400 pb-2 last:border-0">
                         <div class="flex items-center gap-4">
-                            <span class="text-4xl font-black ${rankColor} w-16 text-left">#${i + 1}</span>
-                            <span class="text-3xl font-bold text-white uppercase tracking-wider drop-shadow-md">${r.name}</span>
+                            <span class="text-3xl font-black ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-500' : i === 2 ? 'text-orange-600' : 'text-black'} drop-shadow-sm">#${i + 1}</span> 
+                            <span class="text-2xl font-bold text-gray-800 truncate max-w-[200px]">${s.name}</span>
                         </div>
-                        <span class="text-4xl font-black text-pink-400 font-mono drop-shadow-[2px_2px_0_#000]">${r.score}</span>
-                    `;
-                    ol.appendChild(li);
-                });
-                list.appendChild(ol);
-            } catch (e) {
-                list.innerHTML = '<p class="text-red-500 text-4xl font-black">FAILED TO LOAD!</p>';
+                        <span class="text-3xl font-black text-pink-500 drop-shadow-sm">${s.score}</span>
+                    </div>
+                `).join('');
+
+                rankingsList.appendChild(listContainer);
+
+            } catch (err) {
+                rankingsList.innerHTML += '<div class="text-2xl text-red-500 font-bold mt-4">Failed to load rankings.</div>';
             }
         }
     }
 
-    private draw() {
-        // Clear screen
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // Calculate scale factor
-        const scaleFactor = this.canvas.height / LOGICAL_HEIGHT;
-
-        // Save context state
-        this.ctx.save();
-
-        // Apply scaling
-        this.ctx.scale(scaleFactor, scaleFactor);
-
-        if (this.bgImage.complete) {
-            // Draw background covering the canvas (logical coordinates)
-            // We want the background to cover the logical area (width / scaleFactor, LOGICAL_HEIGHT)
-            const logicalWidth = this.canvas.width / scaleFactor;
-
-            // Calculate scale to cover logical area
-            const bgScale = Math.max(logicalWidth / this.bgImage.width, LOGICAL_HEIGHT / this.bgImage.height);
-            const w = this.bgImage.width * bgScale;
-            const h = this.bgImage.height * bgScale;
-            const x = (logicalWidth - w) / 2;
-            const y = (LOGICAL_HEIGHT - h) / 2;
-
-            this.ctx.drawImage(this.bgImage, x, y, w, h);
-        } else {
-            this.ctx.fillStyle = '#1a202c'; // Gray-900
-            this.ctx.fillRect(0, 0, this.canvas.width / scaleFactor, LOGICAL_HEIGHT);
-        }
-
-        // Draw entities
-        this.stageManager.draw(this.ctx);
-        this.player.draw(this.ctx);
-
-        // Restore context state
-        this.ctx.restore();
-    }
-
-    private updateUI() {
-        const scoreEl = document.getElementById('score-display');
-        if (scoreEl) scoreEl.textContent = Math.floor(this.score).toString().padStart(6, '0');
-
-        const speedEl = document.getElementById('speed-display');
-        if (speedEl) speedEl.textContent = this.speedMultiplier.toFixed(1) + 'x';
+    // Helper to restore rankings view if closed
+    public displayRankings() {
+        this.showRankings();
     }
 }
