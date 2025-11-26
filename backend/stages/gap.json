@@ -1,0 +1,22 @@
+{
+    "id": "gap",
+    "width": 1000,
+    "elements": [
+        {
+            "type": "platform",
+            "x": 0,
+            "y": 0,
+            "width": 400,
+            "height": 200,
+            "blockType": "grass"
+        },
+        {
+            "type": "platform",
+            "x": 600,
+            "y": 0,
+            "width": 400,
+            "height": 200,
+            "blockType": "grass"
+        }
+    ]
+}

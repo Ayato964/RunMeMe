@@ -1,0 +1,14 @@
+{
+    "id": "flat",
+    "width": 800,
+    "elements": [
+        {
+            "type": "platform",
+            "x": 0,
+            "y": 0,
+            "width": 800,
+            "height": 200,
+            "blockType": "grass"
+        }
+    ]
+}

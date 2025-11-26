@@ -1,0 +1,30 @@
+{
+    "id": "stairs",
+    "width": 1200,
+    "elements": [
+        {
+            "type": "platform",
+            "x": 0,
+            "y": 0,
+            "width": 300,
+            "height": 200,
+            "blockType": "grass"
+        },
+        {
+            "type": "platform",
+            "x": 400,
+            "y": 0,
+            "width": 300,
+            "height": 300,
+            "blockType": "grass"
+        },
+        {
+            "type": "platform",
+            "x": 800,
+            "y": 0,
+            "width": 300,
+            "height": 400,
+            "blockType": "grass"
+        }
+    ]
+}

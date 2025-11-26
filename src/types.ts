@@ -16,7 +16,9 @@ export interface Rect {
 }
 
 export interface ChunkElement {
-    type: 'platform' | 'coin' | 'enemy';
+    type: 'platform' | 'coin' | 'enemy' | 'decoration';
+    subtype?: 'plant' | 'stone';
+    blockType?: 'grass' | 'soil' | 'stone'; // For platforms
     x: number; // Relative to chunk start
     y: number;
     width: number;
