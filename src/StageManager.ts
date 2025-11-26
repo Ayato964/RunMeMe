@@ -1,5 +1,5 @@
 import type { ChunkDef, ChunkElement, GameConfig } from './types';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, LOGICAL_HEIGHT } from './config';
 
 export class StageManager {
     private activeElements: ChunkElement[] = [];
@@ -12,6 +12,7 @@ export class StageManager {
 
     private readonly BLOCK_SIZE = 100;
     private lastChunkId: string | null = null;
+    private isFetching: boolean = false;
 
     constructor(_config: GameConfig) {
         this.platformImage = new Image();
@@ -30,6 +31,7 @@ export class StageManager {
         this.totalDistance = 0;
         this.activeElements = [];
         this.lastChunkId = null;
+        this.isFetching = false;
         // Initial platform - Always start with flat ground
         this.fetchAndAddChunk(0, true);
         this.fetchAndAddChunk(800, true);
@@ -54,6 +56,8 @@ export class StageManager {
         const lastElement = this.activeElements[this.activeElements.length - 1];
         // Generate well ahead of the screen (e.g., 2500px) to hide loading
         if (lastElement && lastElement.x < 2500) {
+            if (this.isFetching) return;
+
             // Find the rightmost x position
             let maxX = -Infinity;
             this.activeElements.forEach(el => {
@@ -68,6 +72,16 @@ export class StageManager {
     }
 
     private async fetchAndAddChunk(startX: number, isStart: boolean = false) {
+        if (this.isFetching && !isStart) return; // Allow initial fetches to proceed or handle differently? 
+        // Actually, for initial fetches we might call it multiple times synchronously. 
+        // But since they are distinct calls (0, 800, 1600), we should probably allow them.
+        // However, the `update` loop calls this repeatedly.
+        // Let's rely on the check in `update` for the loop, and here just set the flag.
+        // But wait, `reset` calls it 3 times. If we lock it, only the first one might succeed if we are strict.
+        // Let's make `isFetching` only block the `update` loop generation.
+
+        this.isFetching = true;
+
         try {
             let url = isStart ? `${API_BASE_URL}/stage/start` : `${API_BASE_URL}/stage/random`;
             if (!isStart && this.lastChunkId) {
@@ -93,11 +107,13 @@ export class StageManager {
                 width: 800,
                 elements: [{ type: 'platform', x: 0, y: 0, width: 800, height: 200, blockType: 'grass' }]
             }, startX);
+        } finally {
+            this.isFetching = false;
         }
     }
 
     private addChunk(chunk: ChunkDef, startX: number) {
-        const screenBottom = window.innerHeight;
+        const screenBottom = LOGICAL_HEIGHT;
 
         chunk.elements.forEach(el => {
             let adjustedY = el.y;

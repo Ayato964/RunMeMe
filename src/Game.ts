@@ -1,7 +1,7 @@
 import type { GameConfig } from './types';
 import { Player } from './Player';
 import { StageManager } from './StageManager';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, LOGICAL_HEIGHT } from './config';
 
 export class Game {
     private canvas: HTMLCanvasElement;
@@ -160,7 +160,7 @@ export class Game {
         this.checkCollisions();
 
         // Check Game Over
-        if (this.player.position.y > this.canvas.height) {
+        if (this.player.position.y > LOGICAL_HEIGHT) {
             this.gameOver();
         }
 
@@ -342,24 +342,41 @@ export class Game {
 
     private draw() {
         // Clear screen
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Calculate scale factor
+        const scaleFactor = this.canvas.height / LOGICAL_HEIGHT;
+
+        // Save context state
+        this.ctx.save();
+
+        // Apply scaling
+        this.ctx.scale(scaleFactor, scaleFactor);
+
         if (this.bgImage.complete) {
-            // Draw background covering the canvas
-            // Calculate scale to cover
-            const scale = Math.max(this.canvas.width / this.bgImage.width, this.canvas.height / this.bgImage.height);
-            const w = this.bgImage.width * scale;
-            const h = this.bgImage.height * scale;
-            const x = (this.canvas.width - w) / 2;
-            const y = (this.canvas.height - h) / 2;
+            // Draw background covering the canvas (logical coordinates)
+            // We want the background to cover the logical area (width / scaleFactor, LOGICAL_HEIGHT)
+            const logicalWidth = this.canvas.width / scaleFactor;
+
+            // Calculate scale to cover logical area
+            const bgScale = Math.max(logicalWidth / this.bgImage.width, LOGICAL_HEIGHT / this.bgImage.height);
+            const w = this.bgImage.width * bgScale;
+            const h = this.bgImage.height * bgScale;
+            const x = (logicalWidth - w) / 2;
+            const y = (LOGICAL_HEIGHT - h) / 2;
 
             this.ctx.drawImage(this.bgImage, x, y, w, h);
         } else {
             this.ctx.fillStyle = '#1a202c'; // Gray-900
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillRect(0, 0, this.canvas.width / scaleFactor, LOGICAL_HEIGHT);
         }
 
         // Draw entities
         this.stageManager.draw(this.ctx);
         this.player.draw(this.ctx);
+
+        // Restore context state
+        this.ctx.restore();
     }
 
     private updateUI() {
