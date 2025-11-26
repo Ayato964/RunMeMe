@@ -12,6 +12,7 @@ export class Game {
     private gameLoopId: number | null = null;
     private isGameOver: boolean = false;
     private score: number = 0;
+    private scoreOffset: number = 0;
     private speedMultiplier: number = 1.0;
     private scrollSpeed: number = 6; // pixels per frame (approx 60fps)
 
@@ -139,8 +140,10 @@ export class Game {
     private reset() {
         this.isGameOver = false;
         this.score = 0;
+        this.scoreOffset = 0;
         this.speedMultiplier = 1.0;
         this.timeSinceLastSpeedIncrease = 0;
+        this.totalPlayTime = 0;
         this.stageManager.reset();
         this.player = new Player(this.config, 100, LOGICAL_HEIGHT - 300);
 
@@ -180,18 +183,28 @@ export class Game {
     }
 
     private timeSinceLastSpeedIncrease: number = 0;
+    private totalPlayTime: number = 0;
 
     private update(dt: number) {
-        // Increase speed every 8 seconds
+        this.totalPlayTime += dt;
+
+        // Calculate Level (1 to 8, increases every 50 seconds)
+        const level = Math.min(8, Math.floor(this.totalPlayTime / 50000) + 1);
+
+        // Calculate Interval (10s base, -1s per level)
+        // Level 1: 10s, Level 2: 9s, ..., Level 5: 6s
+        const speedIncreaseInterval = (10 - (level - 1)) * 1000;
+
+        // Increase speed based on dynamic interval
         this.timeSinceLastSpeedIncrease += dt;
-        if (this.timeSinceLastSpeedIncrease > 8000) {
+        if (this.timeSinceLastSpeedIncrease > speedIncreaseInterval) {
             this.speedMultiplier += this.config.speedIncreaseRate;
             this.timeSinceLastSpeedIncrease = 0;
 
             // Visual feedback for speed up could be added here
             const speedDisplay = document.getElementById('speed-display');
             if (speedDisplay) {
-                speedDisplay.innerText = this.speedMultiplier.toFixed(3) + 'x';
+                speedDisplay.innerText = this.speedMultiplier.toFixed(3) + 'x (Lv.' + level + ')';
                 speedDisplay.classList.add('text-yellow-400', 'scale-125');
                 setTimeout(() => {
                     speedDisplay.classList.remove('text-yellow-400', 'scale-125');
@@ -227,6 +240,29 @@ export class Game {
                         this.gameOver();
                     }
                 }
+            } else if (el.type === 'item') {
+                // Check collision with item
+                if (
+                    playerRect.x < el.x + el.width &&
+                    playerRect.x + playerRect.width > el.x &&
+                    playerRect.y + playerRect.height > el.y &&
+                    playerRect.y < el.y + el.height
+                ) {
+                    // Item collected
+                    if (el.subtype === 'onigiri') {
+                        this.speedMultiplier = Math.max(0.5, this.speedMultiplier - 0.5);
+                    } else if (el.subtype === 'icecream') {
+                        this.scoreOffset += 500;
+                    } else if (el.subtype === 'star') {
+                        this.player.addDoubleJump();
+                    }
+
+                    // Remove item
+                    const index = this.stageManager.getElements().indexOf(el);
+                    if (index > -1) {
+                        this.stageManager.getElements().splice(index, 1);
+                    }
+                }
             }
         }
 
@@ -236,7 +272,9 @@ export class Game {
 
         // Score update (distance based)
         // 1 pixel = 1 point roughly, maybe scaled down
-        this.score = Math.floor(this.stageManager.getTotalDistance() / 10);
+        // Score update (distance based + offset)
+        // 1 pixel = 1 point roughly, maybe scaled down
+        this.score = Math.floor(this.stageManager.getTotalDistance() / 10) + this.scoreOffset;
 
         // Check fall off
         if (this.player.position.y > LOGICAL_HEIGHT) {
@@ -278,7 +316,16 @@ export class Game {
         this.ctx.strokeStyle = 'black';
         this.ctx.lineWidth = 4;
         this.ctx.strokeText(`Score: ${Math.floor(this.score)}`, 20, 50);
+        this.ctx.strokeText(`Score: ${Math.floor(this.score)}`, 20, 50);
         this.ctx.fillText(`Score: ${Math.floor(this.score)}`, 20, 50);
+
+        // Draw Double Jump Count
+        if (this.player.doubleJumpCount > 0) {
+            this.ctx.fillStyle = '#f6e05e'; // Yellow-400
+            this.ctx.font = 'bold 24px "Comic Sans MS", sans-serif';
+            this.ctx.strokeText(`Double Jumps: ${this.player.doubleJumpCount}`, 20, 80);
+            this.ctx.fillText(`Double Jumps: ${this.player.doubleJumpCount}`, 20, 80);
+        }
 
         this.ctx.restore();
     }

@@ -12,6 +12,8 @@ export class Player {
     private frameTimer: number = 0;
     private animationSpeed: number = 0.1; // Switch every 100ms
 
+    public doubleJumpCount: number = 0;
+
     constructor(config: GameConfig, startX: number, startY: number) {
         this.config = config;
         this.position = { x: startX, y: startY };
@@ -52,7 +54,15 @@ export class Player {
         if (this.isGrounded) {
             this.velocity.y = this.config.jumpForce;
             this.isGrounded = false;
+        } else if (this.doubleJumpCount > 0) {
+            this.velocity.y = this.config.jumpForce;
+            this.doubleJumpCount--;
+            // Optional: Visual effect for double jump
         }
+    }
+
+    public addDoubleJump() {
+        this.doubleJumpCount++;
     }
 
     public stopJump() {

@@ -9,6 +9,13 @@
             "width": 800,
             "height": 200,
             "blockType": "grass"
+        },
+        {
+            "type": "item_area",
+            "x": 200,
+            "y": 350,
+            "width": 400,
+            "height": 100
         }
     ]
 }

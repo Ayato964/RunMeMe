@@ -10,6 +10,9 @@ export class StageManager {
     private stoneImage: HTMLImageElement;
     private soilImage: HTMLImageElement;
     private flowerImage: HTMLImageElement;
+    private onigiriImage: HTMLImageElement;
+    private icecreamImage: HTMLImageElement;
+    private starImage: HTMLImageElement;
 
     private readonly BLOCK_SIZE = 100;
     private lastChunkId: string | null = null;
@@ -28,6 +31,12 @@ export class StageManager {
         this.soilImage.src = 'assets/soil.png';
         this.flowerImage = new Image();
         this.flowerImage.src = 'assets/flower.png';
+        this.onigiriImage = new Image();
+        this.onigiriImage.src = 'assets/onigiri.png';
+        this.icecreamImage = new Image();
+        this.icecreamImage.src = 'assets/icecream.png';
+        this.starImage = new Image();
+        this.starImage.src = 'assets/star.png';
 
         this.reset();
     }
@@ -138,7 +147,7 @@ export class StageManager {
             }
 
             // Add element
-            if (el.type !== 'decoration') {
+            if (el.type !== 'decoration' && el.type !== 'item_area') {
                 this.activeElements.push({
                     ...el,
                     x: startX + el.x,
@@ -165,6 +174,46 @@ export class StageManager {
                             width: decoWidth,
                             height: decoHeight
                         });
+                    }
+                }
+            }
+
+            // Handle Item Areas
+            if (el.type === 'item_area') {
+                const cols = Math.ceil(el.width / this.BLOCK_SIZE);
+                const rows = Math.ceil(el.height / this.BLOCK_SIZE);
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const bx = startX + el.x + c * this.BLOCK_SIZE;
+                        const by = adjustedY + r * this.BLOCK_SIZE;
+
+                        // Random generation
+                        const rand = Math.random();
+                        let itemType: 'onigiri' | 'icecream' | 'star' | null = null;
+
+                        if (rand < 0.01) {
+                            itemType = 'star'; // 1%
+                        } else if (rand < 0.02) { // 0.01 + 0.02
+                            itemType = 'onigiri'; // 2%
+                        } else if (rand < 0.22) { // 0.02 + 0.20
+                            itemType = 'icecream'; // 20%
+                        }
+
+                        if (itemType) {
+                            // Center item in block
+                            const itemSize = 50;
+                            const offset = (this.BLOCK_SIZE - itemSize) / 2;
+
+                            this.activeElements.push({
+                                type: 'item',
+                                subtype: itemType,
+                                x: bx + offset,
+                                y: by + offset,
+                                width: itemSize,
+                                height: itemSize
+                            });
+                        }
                     }
                 }
             }
@@ -210,6 +259,14 @@ export class StageManager {
                 let img = this.stoneImage;
                 if (el.subtype === 'plant') img = this.plantImage;
                 else if (el.subtype === 'flower') img = this.flowerImage;
+
+                if (img.complete) {
+                    ctx.drawImage(img, el.x, el.y, el.width, el.height);
+                }
+            } else if (el.type === 'item') {
+                let img = this.onigiriImage;
+                if (el.subtype === 'icecream') img = this.icecreamImage;
+                else if (el.subtype === 'star') img = this.starImage;
 
                 if (img.complete) {
                     ctx.drawImage(img, el.x, el.y, el.width, el.height);
