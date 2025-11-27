@@ -183,7 +183,7 @@ export class Game {
             this.currentBgm = null;
         }
 
-        const tracks = ['/assets/sound/stage1.mp3', '/assets/sound/stage2.mp3'];
+        const tracks = ['assets/sound/stage1.mp3', 'assets/sound/stage2.mp3'];
         const randomTrack = tracks[Math.floor(Math.random() * tracks.length)];
 
         this.currentBgm = new Audio(randomTrack);
