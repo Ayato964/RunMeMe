@@ -58,72 +58,132 @@ export class StageMaker {
     }
 
     private initUI() {
+        console.log("StageMaker: initUI called");
+
+        // Direct Event Listeners
+
         // Back Button
-        document.getElementById('back-btn')?.addEventListener('click', () => {
-            window.location.href = '/index.html';
-        });
+        const backBtn = document.getElementById('back-btn');
+        if (backBtn) {
+            backBtn.addEventListener('click', () => {
+                window.location.href = '/index.html';
+            });
+        } else {
+            console.error("Back button not found");
+        }
 
         // Reset Button
         const resetBtn = document.getElementById('reset-map-btn');
-        if (resetBtn) {
+        const confirmModal = document.getElementById('confirm-modal');
+        const confirmYesBtn = document.getElementById('confirm-yes-btn');
+        const confirmNoBtn = document.getElementById('confirm-no-btn');
+
+        if (resetBtn && confirmModal && confirmYesBtn && confirmNoBtn) {
+            // Show Modal
             resetBtn.addEventListener('click', () => {
-                console.log("Reset Map button clicked");
-                if (confirm("Are you sure you want to reset the map? All progress will be lost.")) {
-                    // Reset State
-                    this.currentStage = { id: '', width: 0, elements: [] };
-                    this.clearedSpeeds = { '1.0': false, '2.0': false, '3.0': false };
+                confirmModal.classList.remove('hidden');
+            });
 
-                    // Clear LocalStorage
-                    localStorage.removeItem('stageMakerDraft');
-                    localStorage.removeItem('stageMakerDraftMeta');
-                    localStorage.removeItem('testCompleted');
-                    localStorage.removeItem('testStage');
+            // Confirm Yes
+            confirmYesBtn.addEventListener('click', () => {
+                // Reset State
+                this.currentStage = { id: '', width: 0, elements: [] };
+                this.clearedSpeeds = { '1.0': false, '2.0': false, '3.0': false };
 
-                    // Reset UI
-                    document.getElementById('setup-panel')?.classList.remove('hidden');
-                    document.getElementById('inventory-bar')?.classList.add('hidden');
-                    document.getElementById('inventory-bar')?.classList.remove('flex');
-                    document.getElementById('checklist-container')?.classList.add('hidden');
-                    document.getElementById('checklist-container')?.classList.remove('flex');
+                // Clear LocalStorage
+                localStorage.removeItem('stageMakerDraft');
+                localStorage.removeItem('stageMakerDraftMeta');
+                localStorage.removeItem('testCompleted');
+                localStorage.removeItem('testStage');
 
-                    this.updateChecklistUI();
-                    this.draw();
-                }
+                // Reset UI
+                document.getElementById('setup-panel')?.classList.remove('hidden');
+                document.getElementById('inventory-bar')?.classList.add('hidden');
+                document.getElementById('inventory-bar')?.classList.remove('flex');
+                document.getElementById('checklist-container')?.classList.add('hidden');
+                document.getElementById('checklist-container')?.classList.remove('flex');
+
+                this.updateChecklistUI();
+                this.draw();
+
+                confirmModal.classList.add('hidden');
+                // alert("Map has been reset."); // Optional, maybe too noisy
+            });
+
+            // Confirm No
+            confirmNoBtn.addEventListener('click', () => {
+                confirmModal.classList.add('hidden');
             });
         } else {
-            console.error("Reset Map button not found!");
+            console.error("Reset Map button or modal elements not found");
         }
 
         // Test Play Button
-        document.getElementById('test-play-btn')?.addEventListener('click', () => {
-            console.log("Test Play button clicked");
-            if (this.currentStage.elements.length === 0) {
-                alert("Please place some blocks first!");
-                return;
+        const testPlayBtn = document.getElementById('test-play-btn');
+        if (testPlayBtn) {
+            testPlayBtn.addEventListener('click', () => {
+                console.log("Test Play button clicked");
+                if (this.currentStage.elements.length === 0) {
+                    alert("Please place some blocks first!");
+                    return;
+                }
+
+                // Validate: At least one item spawn area
+                const hasItemArea = this.currentStage.elements.some(el => el.type === 'item_area');
+                if (!hasItemArea) {
+                    alert("You must place at least one Item Spawn Area!");
+                    return;
+                }
+
+                // Determine speed to test
+                let speedToTest = '1.0';
+                if (!this.clearedSpeeds['1.0']) speedToTest = '1.0';
+                else if (!this.clearedSpeeds['2.0']) speedToTest = '2.0';
+                else if (!this.clearedSpeeds['3.0']) speedToTest = '3.0';
+                else speedToTest = '3.0'; // Default to max if all cleared
+
+                localStorage.setItem('testStage', JSON.stringify(this.currentStage));
+                localStorage.setItem('testSpeed', speedToTest);
+                this.saveDraft(); // Ensure draft is saved
+                window.location.href = '/index.html?mode=test';
+            });
+        } else {
+            console.error("Test Play button not found");
+        }
+
+        // Publish Button
+        const publishBtn = document.getElementById('publish-btn');
+        if (publishBtn) {
+            publishBtn.addEventListener('click', () => {
+                // Requirement relaxed: Allow publishing immediately
+                this.publishStage();
+            });
+        } else {
+            console.error("Publish button not found");
+        }
+
+        // 1. Load Draft & Meta FIRST
+        const draft = localStorage.getItem('stageMakerDraft');
+        const draftMeta = localStorage.getItem('stageMakerDraftMeta');
+
+        if (draft) {
+            try {
+                this.currentStage = JSON.parse(draft);
+                if (draftMeta) {
+                    this.clearedSpeeds = JSON.parse(draftMeta);
+                }
+            } catch (e) {
+                console.error("Failed to load draft", e);
             }
-
-            // Validate: At least one item spawn area
-            const hasItemArea = this.currentStage.elements.some(el => el.type === 'item_area');
-            if (!hasItemArea) {
-                alert("You must place at least one Item Spawn Area!");
-                return;
+        } else {
+            // Fallback: If no draft but we have a testStage (rare case if local storage was cleared but not testStage?)
+            const savedStage = localStorage.getItem('testStage');
+            if (savedStage) {
+                this.currentStage = JSON.parse(savedStage);
             }
+        }
 
-            // Determine speed to test
-            let speedToTest = '1.0';
-            if (!this.clearedSpeeds['1.0']) speedToTest = '1.0';
-            else if (!this.clearedSpeeds['2.0']) speedToTest = '2.0';
-            else if (!this.clearedSpeeds['3.0']) speedToTest = '3.0';
-            else speedToTest = '3.0'; // Default to max if all cleared
-
-            console.log(`Validation passed, saving stage and redirecting for speed ${speedToTest}...`);
-            localStorage.setItem('testStage', JSON.stringify(this.currentStage));
-            localStorage.setItem('testSpeed', speedToTest);
-            this.saveDraft(); // Ensure draft is saved
-            window.location.href = '/index.html?mode=test';
-        });
-
-        // Check if test completed
+        // 2. Process Test Completion (Merge results)
         const lastTestSpeed = localStorage.getItem('testSpeed');
         const testCompleted = localStorage.getItem('testCompleted') === 'true';
 
@@ -131,94 +191,36 @@ export class StageMaker {
             // Mark as cleared
             this.clearedSpeeds[lastTestSpeed] = true;
             localStorage.removeItem('testCompleted'); // Consume the flag
-            this.saveDraft(); // Save the cleared status
+
+            // Save immediately so we don't lose it on refresh
+            this.saveDraft();
         }
 
+        // 3. Update UI based on state
         this.updateChecklistUI();
 
-        // Load Draft Logic
-        const draft = localStorage.getItem('stageMakerDraft');
-        const draftMeta = localStorage.getItem('stageMakerDraftMeta'); // For clearedSpeeds
-
-        if (draft) {
-            try {
-                this.currentStage = JSON.parse(draft);
-                if (draftMeta) {
-                    this.clearedSpeeds = JSON.parse(draftMeta);
-                    this.updateChecklistUI();
-                }
-
-                // Hide setup, show inventory
-                const setupPanel = document.getElementById('setup-panel');
-                const inventoryBar = document.getElementById('inventory-bar');
-                const checklistContainer = document.getElementById('checklist-container');
-
-                if (setupPanel) setupPanel.classList.add('hidden');
-                if (inventoryBar) {
-                    inventoryBar.classList.remove('hidden');
-                    inventoryBar.classList.add('flex');
-                }
-                if (checklistContainer) {
-                    checklistContainer.classList.remove('hidden');
-                    checklistContainer.classList.add('flex');
-                }
-
-            } catch (e) {
-                console.error("Failed to load draft", e);
-            }
-        } else if (localStorage.getItem('testCompleted') === 'true') {
-            // Fallback to testStage if draft missing but test completed
-            const savedStage = localStorage.getItem('testStage');
-            if (savedStage) {
-                this.currentStage = JSON.parse(savedStage);
-                document.getElementById('setup-panel')!.classList.add('hidden');
-                document.getElementById('inventory-bar')!.classList.remove('hidden');
-                document.getElementById('inventory-bar')!.classList.add('flex');
-                document.getElementById('checklist-container')!.classList.remove('hidden');
-                document.getElementById('checklist-container')!.classList.add('flex');
-            }
+        if (this.currentStage.width > 0) {
+            // We have an active stage
+            document.getElementById('setup-panel')?.classList.add('hidden');
+            document.getElementById('inventory-bar')?.classList.remove('hidden');
+            document.getElementById('inventory-bar')?.classList.add('flex');
+            document.getElementById('checklist-container')?.classList.remove('hidden');
+            document.getElementById('checklist-container')?.classList.add('flex');
+        } else {
+            // No active stage, show setup
+            document.getElementById('setup-panel')?.classList.remove('hidden');
+            document.getElementById('inventory-bar')?.classList.add('hidden');
+            document.getElementById('inventory-bar')?.classList.remove('flex');
+            document.getElementById('checklist-container')?.classList.add('hidden');
+            document.getElementById('checklist-container')?.classList.remove('flex');
         }
-
-        // Publish Button
-        document.getElementById('publish-btn')?.addEventListener('click', async () => {
-            // Check if all speeds cleared
-            if (!this.clearedSpeeds['1.0'] || !this.clearedSpeeds['2.0'] || !this.clearedSpeeds['3.0']) {
-                alert("You must clear the stage at speeds 1.0, 2.0, and 3.0 to publish!");
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/stage`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'ngrok-skip-browser-warning': 'true'
-                    },
-                    body: JSON.stringify(this.currentStage)
-                });
-
-                if (response.ok) {
-                    alert("Stage Published Successfully!");
-                    localStorage.removeItem('testCompleted');
-                    localStorage.removeItem('testStage');
-                    localStorage.removeItem('stageMakerDraft'); // Clear draft
-                    localStorage.removeItem('stageMakerDraftMeta');
-                    window.location.href = '/index.html';
-                } else {
-                    alert("Failed to publish stage.");
-                }
-            } catch (error) {
-                console.error("Publish error:", error);
-                alert("Error publishing stage.");
-            }
-        });
 
         // Width Selection
         const widthBtns = document.querySelectorAll('.width-select-btn');
         widthBtns.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
-                const widthBlocks = parseInt(target.dataset.width || '10'); // This is blocks, not chunks
+                const widthBlocks = parseInt(target.dataset.width || '10');
                 this.initStage(widthBlocks);
             });
         });
@@ -236,6 +238,8 @@ export class StageMaker {
                 }
                 this.initStage(val);
             });
+        } else {
+            console.error("Custom width elements not found!", { btn: !!customWidthBtn, input: !!customWidthInput });
         }
 
         // Tool Selection
@@ -256,6 +260,33 @@ export class StageMaker {
                 target.classList.add('border-blue-500', 'bg-blue-100');
             });
         });
+    }
+
+    private async publishStage() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/stage`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true'
+                },
+                body: JSON.stringify(this.currentStage)
+            });
+
+            if (response.ok) {
+                alert("Stage Published Successfully!");
+                localStorage.removeItem('testCompleted');
+                localStorage.removeItem('testStage');
+                localStorage.removeItem('stageMakerDraft'); // Clear draft
+                localStorage.removeItem('stageMakerDraftMeta');
+                window.location.href = '/index.html';
+            } else {
+                alert("Failed to publish stage.");
+            }
+        } catch (error) {
+            console.error("Publish error:", error);
+            alert("Error publishing stage.");
+        }
     }
 
     private updateChecklistUI() {
@@ -280,15 +311,10 @@ export class StageMaker {
 
         const publishBtn = document.getElementById('publish-btn') as HTMLButtonElement;
         if (publishBtn) {
-            if (allCleared) {
-                publishBtn.disabled = false;
-                publishBtn.classList.remove('bg-gray-400', 'text-gray-200', 'cursor-not-allowed');
-                publishBtn.classList.add('bg-purple-500', 'hover:bg-purple-600', 'text-white');
-            } else {
-                publishBtn.disabled = true;
-                publishBtn.classList.add('bg-gray-400', 'text-gray-200', 'cursor-not-allowed');
-                publishBtn.classList.remove('bg-purple-500', 'hover:bg-purple-600', 'text-white');
-            }
+            // Always enable publish button (relaxed requirement)
+            publishBtn.disabled = false;
+            publishBtn.classList.remove('bg-gray-400', 'text-gray-200', 'cursor-not-allowed');
+            publishBtn.classList.add('bg-purple-500', 'hover:bg-purple-600', 'text-white');
         }
     }
 
@@ -304,11 +330,11 @@ export class StageMaker {
         this.updateChecklistUI();
 
         // Hide setup, show inventory
-        document.getElementById('setup-panel')!.classList.add('hidden');
-        document.getElementById('inventory-bar')!.classList.remove('hidden');
-        document.getElementById('inventory-bar')!.classList.add('flex');
-        document.getElementById('checklist-container')!.classList.remove('hidden');
-        document.getElementById('checklist-container')!.classList.add('flex');
+        document.getElementById('setup-panel')?.classList.add('hidden');
+        document.getElementById('inventory-bar')?.classList.remove('hidden');
+        document.getElementById('inventory-bar')?.classList.add('flex');
+        document.getElementById('checklist-container')?.classList.remove('hidden');
+        document.getElementById('checklist-container')?.classList.add('flex');
 
         this.saveDraft();
         this.draw();
@@ -486,10 +512,23 @@ export class StageMaker {
     }
 }
 
+// Global access for debugging
+declare global {
+    interface Window {
+        stageMaker: StageMaker;
+    }
+}
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        new StageMaker();
+        if (!window.stageMaker) {
+            window.stageMaker = new StageMaker();
+            console.log("StageMaker initialized via DOMContentLoaded");
+        }
     });
 } else {
-    new StageMaker();
+    if (!window.stageMaker) {
+        window.stageMaker = new StageMaker();
+        console.log("StageMaker initialized immediately");
+    }
 }

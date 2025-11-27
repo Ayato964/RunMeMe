@@ -1,0 +1,533 @@
+{
+  "id": "custom_1764225277485",
+  "width": 2000.0,
+  "elements": [
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 0.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 100.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 200.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 300.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 400.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 500.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 600.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 700.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 800.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 900.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 1000.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 0.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 100.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 200.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 300.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 400.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 500.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 600.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 700.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 800.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 900.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 1000.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 0.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 100.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 200.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 300.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 400.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 500.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 600.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 700.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 800.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 900.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 1300.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 1400.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 1500.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 1600.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 1700.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 1800.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "soil",
+      "x": 1900.0,
+      "y": 700.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 1300.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 1400.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 1500.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 1600.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 1700.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 1800.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "grass",
+      "x": 1900.0,
+      "y": 600.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "item_area",
+      "x": 1300,
+      "y": 400,
+      "width": 100,
+      "height": 100
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 1400.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 1500.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 1600.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 1700.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 1800.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    },
+    {
+      "type": "platform",
+      "subtype": null,
+      "blockType": "stone",
+      "x": 1900.0,
+      "y": 300.0,
+      "width": 100.0,
+      "height": 100.0,
+      "properties": null
+    }
+  ]
+}

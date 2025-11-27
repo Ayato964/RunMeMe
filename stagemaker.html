@@ -40,8 +40,7 @@
                 </button>
             </div>
 
-            <!-- Center: Tools (Only visible when stage is active, handled by JS toggling parent or just always there but disabled? JS handles visibility usually) -->
-            <!-- Actually, let's keep it simple. The original code had it in the top bar. -->
+            <!-- Center: Tools -->
             <div id="inventory-bar" class="hidden flex gap-2 bg-white/80 p-2 rounded-xl border-2 border-black">
                 <button
                     class="block-btn w-16 h-16 border-4 border-transparent hover:scale-110 transition-transform bg-cover bg-center"
@@ -87,6 +86,58 @@
                     <button id="publish-btn" disabled
                         class="bg-gray-400 text-gray-200 cursor-not-allowed font-bold py-1 px-3 rounded border-2 border-black shadow-[2px_2px_0_#000] text-sm">
                         PUBLISH
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Initial Setup (Hidden after setup) -->
+        <div id="setup-panel"
+            class="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-auto z-50">
+            <div class="bg-white p-8 rounded-xl border-4 border-black shadow-[8px_8px_0_#000] text-center">
+                <h2 class="text-3xl font-bold mb-6">Create New Stage</h2>
+                <p class="mb-4 text-xl">Select Stage Width (Chunks):</p>
+                <div class="flex flex-col gap-4 justify-center mb-6 items-center">
+                    <div class="flex gap-4">
+                        <button
+                            class="width-select-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg border-2 border-black shadow-[2px_2px_0_#000]"
+                            data-width="10">Small (10)</button>
+                        <button
+                            class="width-select-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg border-2 border-black shadow-[2px_2px_0_#000]"
+                            data-width="20">Medium (20)</button>
+                        <button
+                            class="width-select-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg border-2 border-black shadow-[2px_2px_0_#000]"
+                            data-width="30">Large (30)</button>
+                    </div>
+                    <div class="flex items-center gap-2 mt-2">
+                        <label for="custom-width" class="font-bold text-lg">Custom Width:</label>
+                        <input type="number" id="custom-width" min="5" max="100" value="10" placeholder="8"
+                            class="border-2 border-black rounded px-2 py-1 w-20 text-center font-bold">
+                        <button id="custom-width-btn"
+                            class="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-4 rounded border-2 border-black shadow-[2px_2px_0_#000]">
+                            SET
+                        </button>
+                    </div>
+                </div>
+                <button id="back-btn-setup" onclick="window.location.href='/index.html'"
+                    class="text-gray-500 hover:underline">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Custom Confirm Modal (Hidden by default) -->
+        <div id="confirm-modal"
+            class="hidden absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-auto z-50">
+            <div class="bg-white p-8 rounded-xl border-4 border-black shadow-[8px_8px_0_#000] text-center">
+                <h2 class="text-2xl font-bold mb-4">Clear Map?</h2>
+                <p class="mb-6 text-lg">All progress will be lost.</p>
+                <div class="flex gap-4 justify-center">
+                    <button id="confirm-yes-btn"
+                        class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg border-2 border-black shadow-[2px_2px_0_#000]">
+                        YES, CLEAR
+                    </button>
+                    <button id="confirm-no-btn"
+                        class="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-6 rounded-lg border-2 border-black shadow-[2px_2px_0_#000]">
+                        CANCEL
                     </button>
                 </div>
             </div>
