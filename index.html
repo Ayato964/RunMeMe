@@ -37,7 +37,7 @@
           <div class="mb-6 transform -skew-x-12">
             <input type="text" id="player-name-input" placeholder="ENTER NAME"
               class="px-6 py-3 rounded-xl border-4 border-black bg-white text-black font-black text-2xl text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:outline-none uppercase tracking-wider"
-              value="Player" maxlength="10">
+              value="Player" maxlength="15">
           </div>
 
           <div class="flex gap-6 justify-center items-center">
@@ -45,7 +45,7 @@
               class="transform hover:scale-110 transition-transform duration-200 px-10 py-4 bg-yellow-400 border-4 border-black rounded-xl text-2xl font-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] -skew-x-6">
               START GAME
             </button>
-            <button id="rankings-btn"
+            <button id="rankings-btn-start"
               class="transform hover:scale-110 transition-transform duration-200 px-8 py-4 bg-pink-400 border-4 border-black rounded-xl text-2xl font-black text-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] skew-x-6">
               RANKING
             </button>
@@ -76,9 +76,9 @@
         <div class="text-center">
           <h2 class="text-5xl font-bold mb-4 text-red-500">GAME OVER</h2>
           <p class="text-2xl mb-8">Final Score: <span id="final-score">0</span></p>
-          <button id="restart-btn"
-            class="px-8 py-3 bg-white text-black rounded-full text-xl font-bold hover:scale-105 transition-transform">
-            TRY AGAIN
+          <button id="rankings-btn-gameover"
+            class="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-3 px-8 rounded-full text-2xl shadow-[4px_4px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black">
+            RANKINGS
           </button>
         </div>
       </div>

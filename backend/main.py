@@ -106,3 +106,22 @@ async def get_start_point():
         stage_data = json.load(f)
     
     return stage_data
+
+@app.post("/stage")
+async def publish_stage(stage: ChunkDef):
+    if not STAGES_DIR.exists():
+        STAGES_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique ID if not present or collision
+    stage_id = stage.id
+    if not stage_id:
+        stage_id = f"custom_{random.randint(1000, 9999)}"
+        stage.id = stage_id
+    
+    file_path = STAGES_DIR / f"{stage_id}.json"
+    
+    # Save to file
+    with open(file_path, 'w') as f:
+        json.dump(stage.dict(), f, indent=2)
+    
+    return {"message": "Stage published", "id": stage_id}

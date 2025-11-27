@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run Me Me - Stage Maker</title>
+    <link rel="stylesheet" href="./src/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Comic Neue', cursive;
+            overflow: hidden;
+            /* Prevent scrolling */
+        }
+    </style>
+</head>
+
+<body class="bg-blue-300 h-screen w-screen flex flex-col items-center justify-center relative">
+
+    <!-- Canvas Layer -->
+    <canvas id="stagemaker-canvas" class="absolute inset-0 z-0"></canvas>
+
+    <!-- Stage Maker UI Container -->
+    <div id="stagemaker-ui" class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-4">
+
+        <!-- Top Bar -->
+        <div class="flex justify-between items-start pointer-events-auto w-full">
+            <!-- Left: Navigation -->
+            <div class="flex gap-2">
+                <button id="back-btn"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full border-2 border-black shadow-[2px_2px_0_#000]">
+                    BACK
+                </button>
+                <button id="reset-map-btn"
+                    class="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded-full border-2 border-black shadow-[2px_2px_0_#000]">
+                    CLEAR MAP
+                </button>
+            </div>
+
+            <!-- Center: Tools (Only visible when stage is active, handled by JS toggling parent or just always there but disabled? JS handles visibility usually) -->
+            <!-- Actually, let's keep it simple. The original code had it in the top bar. -->
+            <div id="inventory-bar" class="hidden flex gap-2 bg-white/80 p-2 rounded-xl border-2 border-black">
+                <button
+                    class="block-btn w-16 h-16 border-4 border-transparent hover:scale-110 transition-transform bg-cover bg-center"
+                    style="background-image: url('assets/soil.png')" data-type="platform" data-block="soil"></button>
+                <button
+                    class="block-btn w-16 h-16 border-4 border-transparent hover:scale-110 transition-transform bg-cover bg-center"
+                    style="background-image: url('assets/plant.png')" data-type="platform" data-block="grass"></button>
+                <button
+                    class="block-btn w-16 h-16 border-4 border-transparent hover:scale-110 transition-transform bg-cover bg-center"
+                    style="background-image: url('assets/stone.png')" data-type="platform" data-block="stone"></button>
+                <div class="w-1 h-16 bg-black/20 mx-1"></div>
+                <button
+                    class="block-btn w-16 h-16 border-4 border-transparent hover:scale-110 transition-transform flex items-center justify-center bg-red-100 text-red-500 font-bold text-2xl"
+                    data-type="item_area">?</button>
+                <button
+                    class="block-btn w-16 h-16 border-4 border-transparent hover:scale-110 transition-transform flex items-center justify-center bg-gray-100 text-gray-500 font-bold"
+                    data-type="eraser">ERASE</button>
+            </div>
+
+            <!-- Right: Checklist -->
+            <div id="checklist-container" class="hidden flex-col bg-white/90 p-3 rounded-xl border-2 border-black">
+                <h3 class="font-bold text-sm mb-2">Clear Conditions</h3>
+                <div class="flex flex-col gap-1 text-sm">
+                    <div class="flex items-center gap-2">
+                        <span id="check-1.0" class="text-red-500 font-bold text-lg">☐</span>
+                        <span>Speed 1.0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="check-2.0" class="text-red-500 font-bold text-lg">☐</span>
+                        <span>Speed 2.0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="check-3.0" class="text-red-500 font-bold text-lg">☐</span>
+                        <span>Speed 3.0</span>
+                    </div>
+                </div>
+                <div class="h-px bg-gray-300 my-2"></div>
+                <div class="flex flex-col gap-2">
+                    <button id="test-play-btn"
+                        class="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded border-2 border-black shadow-[2px_2px_0_#000] text-sm">
+                        TEST PLAY
+                    </button>
+                    <button id="publish-btn" disabled
+                        class="bg-gray-400 text-gray-200 cursor-not-allowed font-bold py-1 px-3 rounded border-2 border-black shadow-[2px_2px_0_#000] text-sm">
+                        PUBLISH
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Initial Setup (Hidden after setup) -->
+        <div id="setup-panel"
+            class="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-auto z-50">
+            <div class="bg-white p-8 rounded-xl border-4 border-black shadow-[8px_8px_0_#000] text-center">
+                <h2 class="text-3xl font-bold mb-6">Create New Stage</h2>
+                <p class="mb-4 text-xl">Select Stage Width (Chunks):</p>
+                <div class="flex gap-4 justify-center mb-6">
+                    <button
+                        class="width-select-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg border-2 border-black shadow-[2px_2px_0_#000]"
+                        data-width="10">Small (10)</button>
+                    <button
+                        class="width-select-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg border-2 border-black shadow-[2px_2px_0_#000]"
+                        data-width="20">Medium (20)</button>
+                    <button
+                        class="width-select-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg border-2 border-black shadow-[2px_2px_0_#000]"
+                        data-width="30">Large (30)</button>
+                </div>
+                <button id="back-btn-setup" onclick="window.location.href='/index.html'"
+                    class="text-gray-500 hover:underline">Cancel</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module" src="/src/StageMaker.ts"></script>
+</body>
+
+</html>

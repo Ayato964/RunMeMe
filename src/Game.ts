@@ -69,13 +69,39 @@ export class Game {
 
         // UI Event Listeners
         const startBtn = document.getElementById('start-btn');
+        const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
+
+        const startGame = () => {
+            const name = nameInput?.value.trim().toUpperCase();
+            console.log("Start Game triggered. Name:", name);
+            if (name === '[STAGEMAKER]') {
+                console.log("Redirecting to StageMaker...");
+                window.location.href = '/stagemaker.html';
+            } else {
+                this.start();
+            }
+        };
+
         if (startBtn) {
-            startBtn.addEventListener('click', () => this.start());
+            startBtn.addEventListener('click', startGame);
         }
 
-        const rankingsBtn = document.getElementById('rankings-btn');
-        if (rankingsBtn) {
-            rankingsBtn.addEventListener('click', () => this.showRankings());
+        if (nameInput) {
+            nameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    startGame();
+                }
+            });
+        }
+
+        // Rankings Buttons
+        const rankingsBtnStart = document.getElementById('rankings-btn-start');
+        if (rankingsBtnStart) {
+            rankingsBtnStart.addEventListener('click', () => this.showRankings());
+        }
+        const rankingsBtnGameOver = document.getElementById('rankings-btn-gameover');
+        if (rankingsBtnGameOver) {
+            rankingsBtnGameOver.addEventListener('click', () => this.showRankings());
         }
 
         const closeRankingsBtn = document.getElementById('close-rankings-btn');
@@ -113,6 +139,14 @@ export class Game {
                 }
             });
         }
+
+        // Check for Test Mode at startup
+        const urlParams = new URLSearchParams(window.location.search);
+        console.log("Game Constructor: URL Params:", window.location.search);
+        if (urlParams.get('mode') === 'test') {
+            console.log("Game Constructor: Test Mode detected, starting...");
+            this.start();
+        }
     }
 
     private resize() {
@@ -128,16 +162,48 @@ export class Game {
         this.offsetY = (this.canvas.height - LOGICAL_HEIGHT * this.scale) / 2;
     }
 
+    private currentBgm: HTMLAudioElement | null = null;
+
     public async start() {
         try {
             this.reset();
+            this.playRandomBGM();
+            if (!this.gameLoopId) {
+                this.loop(performance.now());
+            }
         } catch (error) {
             console.error("Game start error:", error);
             alert("Failed to start game. Please refresh.");
         }
     }
 
+    private playRandomBGM() {
+        if (this.currentBgm) {
+            this.currentBgm.pause();
+            this.currentBgm = null;
+        }
+
+        const tracks = ['/assets/sound/stage1.mp3', '/assets/sound/stage2.mp3'];
+        const randomTrack = tracks[Math.floor(Math.random() * tracks.length)];
+
+        this.currentBgm = new Audio(randomTrack);
+        this.currentBgm.volume = 0.5; // Reasonable volume
+        this.currentBgm.play().catch(e => console.error("BGM Play failed:", e));
+
+        this.currentBgm.addEventListener('ended', () => {
+            this.playRandomBGM(); // Play next random track
+        });
+    }
+
     private reset() {
+        console.log("Game Reset called");
+
+        // Stop BGM
+        if (this.currentBgm) {
+            this.currentBgm.pause();
+            this.currentBgm = null;
+        }
+
         this.isGameOver = false;
         this.score = 0;
         this.scoreOffset = 0;
@@ -164,7 +230,33 @@ export class Game {
         if (mobileControls) mobileControls.style.display = 'flex';
 
         this.lastTime = performance.now();
-        this.loop(this.lastTime);
+
+        // Check for Test Mode
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('mode') === 'test') {
+            console.log("Game Reset: Test Mode detected");
+            const testStageStr = localStorage.getItem('testStage');
+            const testSpeedStr = localStorage.getItem('testSpeed');
+            console.log("Game Reset: testStage from LS:", testStageStr ? "Found" : "Null");
+
+            if (testStageStr) {
+                const testStage = JSON.parse(testStageStr);
+                console.log("Game Reset: Setting test stage", testStage);
+                this.stageManager.setTestStage(testStage);
+
+
+                if (testSpeedStr) {
+                    this.speedMultiplier = parseFloat(testSpeedStr);
+                    this.config.speedIncreaseRate = 0;
+                }
+
+                // Show Test Mode UI
+                const scoreEl = document.createElement('div');
+                scoreEl.className = "absolute top-4 right-4 text-white font-bold text-2xl drop-shadow-md z-50";
+                scoreEl.innerText = `TEST MODE - SPEED: ${this.speedMultiplier.toFixed(1)}`;
+                document.body.appendChild(scoreEl);
+            }
+        }
     }
 
     private loop(timestamp: number) {
@@ -189,7 +281,7 @@ export class Game {
         this.totalPlayTime += dt;
 
         // Calculate Level (1 to 8, increases every 50 seconds)
-        const level = Math.min(8, Math.floor(this.totalPlayTime / 50000) + 1);
+        const level = Math.min(8, Math.floor(this.totalPlayTime / 35000) + 1);
 
         // Calculate Interval (10s base, -1s per level)
         // Level 1: 10s, Level 2: 9s, ..., Level 5: 6s
@@ -280,6 +372,46 @@ export class Game {
         if (this.player.position.y > LOGICAL_HEIGHT) {
             this.gameOver();
         }
+
+        // Check Test Clear Condition
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('mode') === 'test' && !this.isGameOver) {
+            // Check if player passed the stage
+            const testStageStr = localStorage.getItem('testStage');
+            if (testStageStr) {
+                const testStage = JSON.parse(testStageStr);
+                const finishDistance = 2400 + testStage.width;
+
+                if (this.stageManager.getTotalDistance() > finishDistance) {
+                    this.onTestClear();
+                }
+            }
+        }
+    }
+
+    private onTestClear() {
+        this.isGameOver = true;
+        cancelAnimationFrame(this.gameLoopId!);
+
+        // Stop BGM
+        if (this.currentBgm) {
+            this.currentBgm.pause();
+            this.currentBgm = null;
+        }
+
+        const currentSpeed = parseFloat(localStorage.getItem('testSpeed') || '1.0');
+        let nextSpeed = currentSpeed + 1.0;
+
+        if (nextSpeed > 3.0) {
+            // All cleared!
+            alert("TEST CLEARED! You can now publish this stage.");
+            localStorage.setItem('testCompleted', 'true');
+            window.location.href = '/stagemaker.html';
+        } else {
+            alert(`SPEED ${currentSpeed.toFixed(1)} CLEARED! Next: ${nextSpeed.toFixed(1)}`);
+            localStorage.setItem('testSpeed', nextSpeed.toFixed(1));
+            window.location.reload();
+        }
     }
 
     private draw() {
@@ -334,6 +466,20 @@ export class Game {
         this.isGameOver = true;
         if (this.gameLoopId) {
             cancelAnimationFrame(this.gameLoopId);
+        }
+
+        // Stop BGM
+        if (this.currentBgm) {
+            this.currentBgm.pause();
+            this.currentBgm = null;
+        }
+
+        // Check Test Mode Failure
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('mode') === 'test') {
+            alert("TEST FAILED! Returning to editor...");
+            window.location.href = '/stagemaker.html';
+            return;
         }
 
         // Hide mobile controls

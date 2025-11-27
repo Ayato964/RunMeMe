@@ -20,6 +20,9 @@ export class StageManager {
 
     private chunkQueue: ChunkDef[] = [];
 
+    private testStage: ChunkDef | null = null;
+    private testStagePlaced: boolean = false;
+
     constructor(_config: GameConfig) {
         this.platformImage = new Image();
         this.platformImage.src = 'assets/soil.png'; // Fallback
@@ -41,16 +44,30 @@ export class StageManager {
         this.reset();
     }
 
+    public setTestStage(stage: ChunkDef) {
+        console.log("StageManager: setTestStage called", stage);
+        this.testStage = stage;
+    }
+
     public reset() {
         this.totalDistance = 0;
         this.activeElements = [];
         this.lastChunkId = null;
         this.isFetching = false;
         this.chunkQueue = [];
+        this.testStagePlaced = false;
+
         // Initial platform - Always start with flat ground
-        this.fetchAndAddChunk(0, true);
-        this.fetchAndAddChunk(800, true);
-        this.fetchAndAddChunk(1600);
+        // Hardcode initial chunks to prevent race conditions/falling
+        const flatChunk: ChunkDef = {
+            id: 'start_flat',
+            width: 800,
+            elements: [{ type: 'platform', x: 0, y: LOGICAL_HEIGHT - 100, width: 800, height: 100, blockType: 'grass' }]
+        };
+
+        this.addChunk(flatChunk, 0);
+        this.addChunk(flatChunk, 800);
+        this.addChunk(flatChunk, 1600);
     }
 
     public update(dt: number, speedMultiplier: number, scrollSpeed: number) {
@@ -70,7 +87,7 @@ export class StageManager {
         // Generate new chunks
         const lastElement = this.activeElements[this.activeElements.length - 1];
         // Generate well ahead of the screen (e.g., 2500px) to hide loading
-        if (lastElement && lastElement.x < 2500) {
+        if (!lastElement || lastElement.x < 2500) {
             // Find the rightmost x position
             let maxX = -Infinity;
             this.activeElements.forEach(el => {
@@ -80,12 +97,29 @@ export class StageManager {
             // If no elements, start at screen edge (shouldn't happen with proper init)
             if (maxX === -Infinity) maxX = 800;
 
-            if (this.chunkQueue.length > 0) {
-                const chunk = this.chunkQueue.shift()!;
-                this.addChunk(chunk, maxX);
-                if (chunk.id) this.lastChunkId = chunk.id;
-            } else if (!this.isFetching) {
-                this.fetchAndAddChunk(maxX);
+            if (this.testStage && !this.testStagePlaced) {
+                // In test mode, place the custom stage once
+                this.addChunk(this.testStage, maxX);
+                this.testStagePlaced = true;
+
+                // Add a finish line or end marker? 
+                // For now, we just stop generating or add a flat end.
+                // Let's add a flat end so player can run off screen to finish
+                this.addChunk({
+                    id: 'finish',
+                    width: 800,
+                    elements: [{ type: 'platform', x: 0, y: LOGICAL_HEIGHT, width: 800, height: 100, blockType: 'grass' }] // Invisible or low platform
+                }, maxX + this.testStage.width);
+
+            } else if (!this.testStage) {
+                // Normal infinite generation
+                if (this.chunkQueue.length > 0) {
+                    const chunk = this.chunkQueue.shift()!;
+                    this.addChunk(chunk, maxX);
+                    if (chunk.id) this.lastChunkId = chunk.id;
+                } else if (!this.isFetching) {
+                    this.fetchAndAddChunk(maxX);
+                }
             }
         }
     }
@@ -139,11 +173,18 @@ export class StageManager {
             let adjustedY = el.y;
 
             if (el.type === 'platform') {
-                // Enforce 2 blocks height if not specified or too small
-                if (!el.height || el.height < this.BLOCK_SIZE) el.height = this.BLOCK_SIZE * 2;
+                // Check if it's a custom stage (absolute coordinates)
+                if (chunk.id && chunk.id.startsWith('custom_')) {
+                    console.log(`Using absolute Y for custom element: ${el.y}`);
+                    adjustedY = el.y;
+                } else {
+                    // Standard generation (grounded)
+                    // Enforce 2 blocks height if not specified or too small
+                    if (!el.height || el.height < this.BLOCK_SIZE) el.height = this.BLOCK_SIZE * 2;
 
-                // Align bottom to screen bottom
-                adjustedY = screenBottom - el.height;
+                    // Align bottom to screen bottom
+                    adjustedY = screenBottom - el.height;
+                }
             }
 
             // Add element
