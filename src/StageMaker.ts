@@ -291,7 +291,7 @@ export class StageMaker {
 
     private updateChecklistUI() {
         const speeds = ['1.0', '2.0', '3.0'];
-        let allCleared = true;
+
 
         speeds.forEach(speed => {
             const el = document.getElementById(`check-${speed}`);
@@ -304,7 +304,7 @@ export class StageMaker {
                     el.innerText = '☐';
                     el.classList.remove('text-green-500');
                     el.classList.add('text-red-500');
-                    allCleared = false;
+
                 }
             }
         });
