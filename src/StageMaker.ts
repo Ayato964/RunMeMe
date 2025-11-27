@@ -69,11 +69,25 @@ export class StageMaker {
             resetBtn.addEventListener('click', () => {
                 console.log("Reset Map button clicked");
                 if (confirm("Are you sure you want to reset the map? All progress will be lost.")) {
+                    // Reset State
+                    this.currentStage = { id: '', width: 0, elements: [] };
+                    this.clearedSpeeds = { '1.0': false, '2.0': false, '3.0': false };
+
+                    // Clear LocalStorage
                     localStorage.removeItem('stageMakerDraft');
                     localStorage.removeItem('stageMakerDraftMeta');
                     localStorage.removeItem('testCompleted');
                     localStorage.removeItem('testStage');
-                    window.location.reload();
+
+                    // Reset UI
+                    document.getElementById('setup-panel')?.classList.remove('hidden');
+                    document.getElementById('inventory-bar')?.classList.add('hidden');
+                    document.getElementById('inventory-bar')?.classList.remove('flex');
+                    document.getElementById('checklist-container')?.classList.add('hidden');
+                    document.getElementById('checklist-container')?.classList.remove('flex');
+
+                    this.updateChecklistUI();
+                    this.draw();
                 }
             });
         } else {
@@ -208,6 +222,21 @@ export class StageMaker {
                 this.initStage(widthBlocks);
             });
         });
+
+        // Custom Width
+        const customWidthBtn = document.getElementById('custom-width-btn');
+        const customWidthInput = document.getElementById('custom-width') as HTMLInputElement;
+
+        if (customWidthBtn && customWidthInput) {
+            customWidthBtn.addEventListener('click', () => {
+                const val = parseInt(customWidthInput.value);
+                if (isNaN(val) || val < 5 || val > 100) {
+                    alert("Please enter a width between 5 and 100 blocks.");
+                    return;
+                }
+                this.initStage(val);
+            });
+        }
 
         // Tool Selection
         document.querySelectorAll('.block-btn').forEach(btn => {
