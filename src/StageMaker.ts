@@ -18,7 +18,6 @@ export class StageMaker {
 
     // Constants
     private readonly BLOCK_SIZE = 100;
-    private readonly CHUNK_WIDTH = 800; // Assuming standard chunk width
 
     // Images
     private plantImage: HTMLImageElement;
