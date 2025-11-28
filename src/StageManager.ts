@@ -62,7 +62,7 @@ export class StageManager {
         const flatChunk: ChunkDef = {
             id: 'start_flat',
             width: 800,
-            elements: [{ type: 'platform', x: 0, y: LOGICAL_HEIGHT - 100, width: 800, height: 100, blockType: 'grass' }]
+            elements: [{ type: 'platform', x: 0, y: LOGICAL_HEIGHT - 200, width: 800, height: 200, blockType: 'grass' }]
         };
 
         this.addChunk(flatChunk, 0);

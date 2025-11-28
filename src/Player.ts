@@ -50,15 +50,18 @@ export class Player {
         }
     }
 
-    public jump() {
+    public jump(): boolean {
         if (this.isGrounded) {
             this.velocity.y = this.config.jumpForce;
             this.isGrounded = false;
+            return true;
         } else if (this.doubleJumpCount > 0) {
             this.velocity.y = this.config.jumpForce;
             this.doubleJumpCount--;
             // Optional: Visual effect for double jump
+            return true;
         }
+        return false;
     }
 
     public addDoubleJump() {

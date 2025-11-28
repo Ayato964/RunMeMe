@@ -19,6 +19,10 @@ export class Game {
     private backgroundImage: HTMLImageElement;
     private backgroundScoreImage: HTMLImageElement;
 
+    private jumpSound: HTMLAudioElement;
+    private itemGetSound: HTMLAudioElement;
+    private gameOverSound: HTMLAudioElement;
+
     // Scaling properties
     private scale: number = 1;
     private offsetX: number = 0;
@@ -40,6 +44,10 @@ export class Game {
         this.backgroundScoreImage = new Image();
         this.backgroundScoreImage.src = 'assets/background_score.png';
 
+        this.jumpSound = new Audio('assets/sound/Jump.wav');
+        this.itemGetSound = new Audio('assets/sound/item_get.wav');
+        this.gameOverSound = new Audio('assets/sound/gameover.wav');
+
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
@@ -52,7 +60,10 @@ export class Game {
                 if (this.isGameOver) {
                     this.reset();
                 } else {
-                    this.player.jump();
+                    if (this.player.jump()) {
+                        this.jumpSound.currentTime = 0;
+                        this.jumpSound.play().catch(() => { });
+                    }
                 }
             }
         });
@@ -63,7 +74,10 @@ export class Game {
             if (this.isGameOver) {
                 this.reset();
             } else {
-                this.player.jump();
+                if (this.player.jump()) {
+                    this.jumpSound.currentTime = 0;
+                    this.jumpSound.play().catch(() => { });
+                }
             }
         }, { passive: false });
 
@@ -125,7 +139,10 @@ export class Game {
                 if (this.isGameOver) {
                     this.reset();
                 } else {
-                    this.player.jump();
+                    if (this.player.jump()) {
+                        this.jumpSound.currentTime = 0;
+                        this.jumpSound.play().catch(() => { });
+                    }
                 }
             }, { passive: false });
 
@@ -135,7 +152,10 @@ export class Game {
                 if (this.isGameOver) {
                     this.reset();
                 } else {
-                    this.player.jump();
+                    if (this.player.jump()) {
+                        this.jumpSound.currentTime = 0;
+                        this.jumpSound.play().catch(() => { });
+                    }
                 }
             });
         }
@@ -262,8 +282,11 @@ export class Game {
     private loop(timestamp: number) {
         if (this.isGameOver) return;
 
-        const dt = timestamp - this.lastTime;
+        let dt = timestamp - this.lastTime;
         this.lastTime = timestamp;
+
+        // Cap dt to prevent huge jumps (e.g. tab switching)
+        if (dt > 50) dt = 50;
 
         // Update
         this.update(dt);
@@ -323,7 +346,7 @@ export class Game {
                 ) {
                     // Collision
                     // Simple resolution: if falling and above, land
-                    if (this.player.velocity.y >= 0 && playerRect.y + playerRect.height - this.player.velocity.y <= el.y + 10) {
+                    if (this.player.velocity.y >= 0 && playerRect.y + playerRect.height - (this.player.velocity.y * (dt / 16)) <= el.y + 10) {
                         this.player.land(el.y);
                         onGround = true;
                     }
@@ -348,6 +371,9 @@ export class Game {
                     } else if (el.subtype === 'star') {
                         this.player.addDoubleJump();
                     }
+
+                    this.itemGetSound.currentTime = 0;
+                    this.itemGetSound.play().catch(() => { });
 
                     // Remove item
                     const index = this.stageManager.getElements().indexOf(el);
@@ -473,6 +499,9 @@ export class Game {
             this.currentBgm.pause();
             this.currentBgm = null;
         }
+
+        this.gameOverSound.currentTime = 0;
+        this.gameOverSound.play().catch(() => { });
 
         // Check Test Mode Failure
         const urlParams = new URLSearchParams(window.location.search);
