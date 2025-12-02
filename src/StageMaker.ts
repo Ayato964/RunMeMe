@@ -8,6 +8,7 @@ export class StageMaker {
     // State
     private currentStage: ChunkDef = { id: '', width: 0, elements: [] };
     private selectedTool: { type: string, blockType?: string } | null = null;
+    private currentRotation: number = 0;
     private clearedSpeeds: { [key: string]: boolean } = { '1.0': false, '2.0': false, '3.0': false };
 
     // Viewport
@@ -23,6 +24,10 @@ export class StageMaker {
     private plantImage: HTMLImageElement;
     private stoneImage: HTMLImageElement;
     private soilImage: HTMLImageElement;
+    private thornImage: HTMLImageElement;
+    private onigiriImage: HTMLImageElement;
+    private icecreamImage: HTMLImageElement;
+    private starImage: HTMLImageElement;
 
     constructor() {
         this.canvas = document.getElementById('stagemaker-canvas') as HTMLCanvasElement;
@@ -31,6 +36,10 @@ export class StageMaker {
         this.plantImage = new Image(); this.plantImage.src = 'assets/plant.png';
         this.stoneImage = new Image(); this.stoneImage.src = 'assets/stone.png';
         this.soilImage = new Image(); this.soilImage.src = 'assets/soil.png';
+        this.thornImage = new Image(); this.thornImage.src = 'assets/thorn.png';
+        this.onigiriImage = new Image(); this.onigiriImage.src = 'assets/onigiri.png';
+        this.icecreamImage = new Image(); this.icecreamImage.src = 'assets/icecream.png';
+        this.starImage = new Image(); this.starImage.src = 'assets/star.png';
 
         this.initUI();
         this.resize();
@@ -260,6 +269,16 @@ export class StageMaker {
                 target.classList.add('border-blue-500', 'bg-blue-100');
             });
         });
+
+        // Rotate Button
+        const rotateBtn = document.getElementById('rotate-btn');
+        if (rotateBtn) {
+            rotateBtn.addEventListener('click', () => {
+                this.currentRotation = (this.currentRotation + 90) % 360;
+                const span = rotateBtn.querySelector('span:last-child');
+                if (span) span.textContent = `${this.currentRotation}°`;
+            });
+        }
     }
 
     private async publishStage() {
@@ -372,6 +391,17 @@ export class StageMaker {
         if (gridY < 0 || gridY >= LOGICAL_HEIGHT) return; // Out of bounds vertically
         if (gridX < 0 || gridX >= this.currentStage.width) return; // Out of bounds horizontally
 
+        // Shift+Click to Rotate
+        if (e.shiftKey) {
+            const existingEl = this.currentStage.elements.find(el => el.x === gridX && el.y === gridY);
+            if (existingEl) {
+                existingEl.rotation = ((existingEl.rotation || 0) + 90) % 360;
+                this.saveDraft();
+                this.draw();
+            }
+            return;
+        }
+
         if (this.selectedTool.type === 'eraser') {
             // Remove elements at this position
             this.currentStage.elements = this.currentStage.elements.filter(el => {
@@ -387,7 +417,8 @@ export class StageMaker {
                     x: gridX,
                     y: gridY,
                     width: this.BLOCK_SIZE,
-                    height: this.BLOCK_SIZE
+                    height: this.BLOCK_SIZE,
+                    rotation: this.currentRotation
                 });
             }
         } else if (this.selectedTool.type === 'item_area') {
@@ -396,6 +427,32 @@ export class StageMaker {
             if (!occupied) {
                 this.currentStage.elements.push({
                     type: 'item_area',
+                    x: gridX,
+                    y: gridY,
+                    width: this.BLOCK_SIZE,
+                    height: this.BLOCK_SIZE
+                });
+            }
+        } else if (this.selectedTool.type === 'thorn') {
+            // Check if occupied
+            const occupied = this.currentStage.elements.some(el => el.x === gridX && el.y === gridY);
+            if (!occupied) {
+                this.currentStage.elements.push({
+                    type: 'thorn',
+                    x: gridX,
+                    y: gridY,
+                    width: this.BLOCK_SIZE,
+                    height: this.BLOCK_SIZE,
+                    rotation: this.currentRotation
+                });
+            }
+        } else if (this.selectedTool.type === 'item') {
+            // Check if occupied
+            const occupied = this.currentStage.elements.some(el => el.x === gridX && el.y === gridY);
+            if (!occupied) {
+                this.currentStage.elements.push({
+                    type: 'item',
+                    subtype: this.selectedTool.blockType as any,
                     x: gridX,
                     y: gridY,
                     width: this.BLOCK_SIZE,
@@ -470,6 +527,14 @@ export class StageMaker {
 
         // Draw Elements
         this.currentStage.elements.forEach(el => {
+            this.ctx.save();
+            // Translate to center of block for rotation
+            const centerX = el.x + el.width / 2;
+            const centerY = el.y + el.height / 2;
+            this.ctx.translate(centerX, centerY);
+            this.ctx.rotate((el.rotation || 0) * Math.PI / 180);
+            this.ctx.translate(-centerX, -centerY);
+
             if (el.type === 'platform') {
                 let img = this.soilImage;
                 if (el.blockType === 'grass') img = this.plantImage;
@@ -489,7 +554,49 @@ export class StageMaker {
                 this.ctx.fillStyle = 'red';
                 this.ctx.font = '20px Arial';
                 this.ctx.fillText('?', el.x + 35, el.y + 55);
+            } else if (el.type === 'thorn') {
+                if (this.thornImage.complete) {
+                    // Draw centered and smaller? Or just fill cell?
+                    // Requirement: "half size". Let's draw it at bottom center of the cell.
+                    // BUT we are rotating. 
+                    // If 0 deg: Bottom Center.
+                    // If we draw at bottom center relative to (0,0) of the block, rotation handles the rest.
+
+                    // Wait, if we translate to center, then (0,0) is top-left of block relative to center?
+                    // No, we translated to center, then rotated, then translated back.
+                    // So drawing at el.x, el.y works as if unrotated, but the whole context is rotated around center.
+
+                    // So we just need to draw it at the "bottom center" of the block rectangle (el.x, el.y, w, h)
+                    // And the rotation transform will move that "bottom" to "top" if rotated 180.
+
+                    const size = 80;
+                    // Center X: el.x + (100-80)/2 = el.x + 10
+                    // Bottom Y: el.y + 100 - 80 = el.y + 20
+
+                    const offsetX = (this.BLOCK_SIZE - size) / 2;
+                    const offsetY = this.BLOCK_SIZE - size;
+                    this.ctx.drawImage(this.thornImage, el.x + offsetX, el.y + offsetY, size, size);
+                } else {
+                    this.ctx.fillStyle = 'purple';
+                    this.ctx.fillRect(el.x + 25, el.y + 50, 50, 50);
+                }
+            } else if (el.type === 'item') {
+                let img = this.onigiriImage;
+                if (el.subtype === 'icecream') img = this.icecreamImage;
+                else if (el.subtype === 'star') img = this.starImage;
+
+                if (img.complete) {
+                    const size = 50;
+                    const offset = (this.BLOCK_SIZE - size) / 2;
+                    this.ctx.drawImage(img, el.x + offset, el.y + offset, size, size);
+                } else {
+                    this.ctx.fillStyle = 'gold';
+                    this.ctx.beginPath();
+                    this.ctx.arc(el.x + 50, el.y + 50, 20, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
             }
+            this.ctx.restore();
         });
 
         // Draw Start Line

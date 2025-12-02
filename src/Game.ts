@@ -346,12 +346,14 @@ export class Game {
                 ) {
                     // Collision
                     // Simple resolution: if falling and above, land
-                    if (this.player.velocity.y >= 0 && playerRect.y + playerRect.height - (this.player.velocity.y * (dt / 16)) <= el.y + 10) {
+                    // Increased tolerance to 20 to prevent falling through seams
+                    if (this.player.velocity.y >= 0 && playerRect.y + playerRect.height - (this.player.velocity.y * (dt / 16)) <= el.y + 20) {
                         this.player.land(el.y);
                         onGround = true;
                     }
                     // Side collision (death)
-                    else if (playerRect.x + playerRect.width > el.x + 10) {
+                    // Only trigger if we are significantly below the top of the platform (not just skimming the edge)
+                    else if (playerRect.x + playerRect.width > el.x + 10 && playerRect.y + playerRect.height > el.y + 15) {
                         this.gameOver();
                     }
                 }
@@ -380,6 +382,16 @@ export class Game {
                     if (index > -1) {
                         this.stageManager.getElements().splice(index, 1);
                     }
+                }
+            } else if (el.type === 'thorn') {
+                // Check collision with thorn
+                if (
+                    playerRect.x < el.x + el.width &&
+                    playerRect.x + playerRect.width > el.x &&
+                    playerRect.y + playerRect.height > el.y &&
+                    playerRect.y < el.y + el.height
+                ) {
+                    this.gameOver();
                 }
             }
         }

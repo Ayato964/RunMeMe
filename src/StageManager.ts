@@ -13,6 +13,7 @@ export class StageManager {
     private onigiriImage: HTMLImageElement;
     private icecreamImage: HTMLImageElement;
     private starImage: HTMLImageElement;
+    private thornImage: HTMLImageElement;
 
     private readonly BLOCK_SIZE = 100;
     private lastChunkId: string | null = null;
@@ -40,6 +41,8 @@ export class StageManager {
         this.icecreamImage.src = 'assets/icecream.png';
         this.starImage = new Image();
         this.starImage.src = 'assets/star.png';
+        this.thornImage = new Image();
+        this.thornImage.src = 'assets/thorn.png';
 
         this.reset();
     }
@@ -189,10 +192,53 @@ export class StageManager {
 
             // Add element
             if (el.type !== 'decoration' && el.type !== 'item_area') {
+                let finalX = startX + el.x;
+                let finalY = adjustedY;
+                let finalWidth = el.width;
+                let finalHeight = el.height;
+
+                if (el.type === 'thorn') {
+                    // Resize to 80x80 and place based on rotation
+                    const size = 80;
+                    finalWidth = size;
+                    finalHeight = size;
+
+                    // Calculate position to be flush with the side
+                    // Cell center
+                    const cellCenterX = startX + el.x + this.BLOCK_SIZE / 2;
+                    const cellCenterY = adjustedY + this.BLOCK_SIZE / 2;
+
+                    // Offset from center (Thorn center is 10px from Cell center when flush bottom)
+                    // Cell Center: 50. Thorn Center: 60 (20 to 100). Diff: +10 Y.
+                    const offset = 10;
+                    const rad = (el.rotation || 0) * Math.PI / 180;
+
+                    // Rotate the offset vector (0, 10)
+                    // x' = x*cos - y*sin = 0 - 10*sin
+                    // y' = x*sin + y*cos = 0 + 10*cos
+                    const offsetX = -offset * Math.sin(rad);
+                    const offsetY = offset * Math.cos(rad);
+
+                    const thornCenterX = cellCenterX + offsetX;
+                    const thornCenterY = cellCenterY + offsetY;
+
+                    finalX = thornCenterX - size / 2;
+                    finalY = thornCenterY - size / 2;
+                } else if (el.type === 'item') {
+                    // Resize to 50x50 and place at center
+                    const size = 50;
+                    finalWidth = size;
+                    finalHeight = size;
+                    finalX += (this.BLOCK_SIZE - size) / 2;
+                    finalY += (this.BLOCK_SIZE - size) / 2;
+                }
+
                 this.activeElements.push({
                     ...el,
-                    x: startX + el.x,
-                    y: adjustedY
+                    x: finalX,
+                    y: finalY,
+                    width: finalWidth,
+                    height: finalHeight
                 });
             }
 
@@ -263,6 +309,14 @@ export class StageManager {
 
     public draw(ctx: CanvasRenderingContext2D) {
         this.activeElements.forEach(el => {
+            ctx.save();
+            // Translate to center of block for rotation
+            const centerX = el.x + el.width / 2;
+            const centerY = el.y + el.height / 2;
+            ctx.translate(centerX, centerY);
+            ctx.rotate((el.rotation || 0) * Math.PI / 180);
+            ctx.translate(-centerX, -centerY);
+
             if (el.type === 'platform') {
                 const blockType = el.blockType || 'grass';
 
@@ -312,7 +366,15 @@ export class StageManager {
                 if (img.complete) {
                     ctx.drawImage(img, el.x, el.y, el.width, el.height);
                 }
+            } else if (el.type === 'thorn') {
+                if (this.thornImage.complete) {
+                    ctx.drawImage(this.thornImage, el.x, el.y, el.width, el.height);
+                } else {
+                    ctx.fillStyle = 'purple';
+                    ctx.fillRect(el.x, el.y, el.width, el.height);
+                }
             }
+            ctx.restore();
         });
     }
 
