@@ -127,6 +127,39 @@ export class StageMaker {
             console.error("Reset Map button or modal elements not found");
         }
 
+        // Load Button
+        const loadBtn = document.getElementById('load-btn');
+        const loadInput = document.getElementById('load-file-input') as HTMLInputElement;
+
+        if (loadBtn && loadInput) {
+            loadBtn.addEventListener('click', () => {
+                loadInput.click();
+            });
+
+            loadInput.addEventListener('change', (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const json = event.target?.result as string;
+                        const stageData = JSON.parse(json);
+                        this.loadStage(stageData);
+                    } catch (err) {
+                        console.error("Failed to parse JSON", err);
+                        alert("Failed to load stage: Invalid JSON file.");
+                    }
+                };
+                reader.readAsText(file);
+
+                // Reset input so same file can be selected again
+                loadInput.value = '';
+            });
+        } else {
+            console.error("Load button or input not found");
+        }
+
         // Test Play Button
         const testPlayBtn = document.getElementById('test-play-btn');
         if (testPlayBtn) {
@@ -335,6 +368,33 @@ export class StageMaker {
             publishBtn.classList.remove('bg-gray-400', 'text-gray-200', 'cursor-not-allowed');
             publishBtn.classList.add('bg-purple-500', 'hover:bg-purple-600', 'text-white');
         }
+    }
+
+    private loadStage(stageData: ChunkDef) {
+        if (!stageData || !stageData.width || !Array.isArray(stageData.elements)) {
+            alert("Invalid stage data.");
+            return;
+        }
+
+        this.currentStage = stageData;
+
+        // Reset cleared speeds for the loaded stage (or could load from meta if we supported it)
+        this.clearedSpeeds = { '1.0': false, '2.0': false, '3.0': false };
+
+        // Update UI
+        this.updateChecklistUI();
+
+        // Show inventory, hide setup
+        document.getElementById('setup-panel')?.classList.add('hidden');
+        document.getElementById('inventory-bar')?.classList.remove('hidden');
+        document.getElementById('inventory-bar')?.classList.add('flex');
+        document.getElementById('checklist-container')?.classList.remove('hidden');
+        document.getElementById('checklist-container')?.classList.add('flex');
+
+        this.saveDraft();
+        this.draw();
+
+        alert("Stage loaded successfully!");
     }
 
     private initStage(widthBlocks: number) {

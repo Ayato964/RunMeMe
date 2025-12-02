@@ -58,7 +58,7 @@ export class Game {
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 if (this.isGameOver) {
-                    this.reset();
+                    this.start();
                 } else {
                     if (this.player.jump()) {
                         this.jumpSound.currentTime = 0;
@@ -72,7 +72,7 @@ export class Game {
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault(); // Prevent scrolling
             if (this.isGameOver) {
-                this.reset();
+                this.start();
             } else {
                 if (this.player.jump()) {
                     this.jumpSound.currentTime = 0;
@@ -137,7 +137,7 @@ export class Game {
             jumpBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 if (this.isGameOver) {
-                    this.reset();
+                    this.start();
                 } else {
                     if (this.player.jump()) {
                         this.jumpSound.currentTime = 0;
@@ -150,7 +150,7 @@ export class Game {
             jumpBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 if (this.isGameOver) {
-                    this.reset();
+                    this.start();
                 } else {
                     if (this.player.jump()) {
                         this.jumpSound.currentTime = 0;
@@ -532,16 +532,21 @@ export class Game {
         const playerName = nameInput?.value || "Player";
 
         // Submit score automatically
+        // Submit score automatically
+        const finalScore = Math.floor(this.score);
         fetch(`${API_BASE_URL}/scores`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'ngrok-skip-browser-warning': 'true'
             },
-            body: JSON.stringify({ score: Math.floor(this.score), name: playerName })
+            body: JSON.stringify({ score: finalScore, name: playerName })
         }).then(() => {
+            // Check if game was restarted while fetching
+            if (!this.isGameOver) return;
+
             // Show Rankings immediately
-            this.showRankings(true); // true = isGameOver
+            this.showRankings(true, finalScore);
 
             // Auto-return to title after 3 seconds
             setTimeout(() => {
@@ -553,7 +558,8 @@ export class Game {
 
         }).catch(err => {
             console.error("Failed to submit score:", err);
-            this.showRankings(true);
+            if (!this.isGameOver) return;
+            this.showRankings(true, finalScore);
             setTimeout(() => {
                 if (this.isGameOver) {
                     this.returnToTitle();
@@ -586,7 +592,7 @@ export class Game {
         if (mobileControls) mobileControls.style.display = 'none';
     }
 
-    public async showRankings(isGameOver: boolean = false) {
+    public async showRankings(isGameOver: boolean = false, score?: number) {
         const rankingsEl = document.getElementById('rankings-screen');
         const rankingsList = document.getElementById('rankings-list');
 
@@ -604,7 +610,7 @@ export class Game {
 
                 const scoreDisplay = document.createElement('div');
                 scoreDisplay.className = "text-4xl font-bold text-white mb-8 drop-shadow-[2px_2px_0_#000]";
-                scoreDisplay.innerText = `SCORE: ${Math.floor(this.score)}`;
+                scoreDisplay.innerText = `SCORE: ${score !== undefined ? score : Math.floor(this.score)}`;
                 rankingsList.appendChild(scoreDisplay);
             } else {
                 rankingsList.innerHTML = '<h2 class="text-6xl font-black text-yellow-400 mb-8 drop-shadow-[4px_4px_0_#000] transform -rotate-3">RANKING</h2>';

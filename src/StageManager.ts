@@ -246,7 +246,6 @@ export class StageManager {
             if (el.type === 'platform') {
                 const numDecorations = Math.floor(Math.random() * 3);
                 for (let i = 0; i < numDecorations; i++) {
-                    const isPlant = Math.random() > 0.5;
                     const decoWidth = 50;
                     const decoHeight = 50;
                     if (el.width > decoWidth) {
@@ -255,7 +254,7 @@ export class StageManager {
 
                         this.activeElements.push({
                             type: 'decoration',
-                            subtype: isPlant ? 'flower' : 'stone',
+                            subtype: 'flower',
                             x: decoX,
                             y: decoY,
                             width: decoWidth,
