@@ -16,6 +16,8 @@ export class Game {
     private speedMultiplier: number = 1.0;
     private scrollSpeed: number = 6; // pixels per frame (approx 60fps)
 
+    private canReturnToTitle: boolean = false;
+
     private backgroundImage: HTMLImageElement;
     private backgroundScoreImage: HTMLImageElement;
 
@@ -58,11 +60,18 @@ export class Game {
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 if (this.isGameOver) {
-                    this.start();
+                    if (this.canReturnToTitle) {
+                        this.returnToTitle();
+                    }
                 } else {
-                    if (this.player.jump()) {
-                        this.jumpSound.currentTime = 0;
-                        this.jumpSound.play().catch(() => { });
+                    const startScreen = document.getElementById('start-screen');
+                    if (startScreen && startScreen.style.display !== 'none') {
+                        document.getElementById('start-btn')?.click();
+                    } else {
+                        if (this.player.jump()) {
+                            this.jumpSound.currentTime = 0;
+                            this.jumpSound.play().catch(() => { });
+                        }
                     }
                 }
             }
@@ -129,6 +138,11 @@ export class Game {
         const restartBtn = document.getElementById('restart-btn');
         if (restartBtn) {
             restartBtn.addEventListener('click', () => this.reset());
+        }
+
+        const returnTitleBtn = document.getElementById('return-title-btn');
+        if (returnTitleBtn) {
+            returnTitleBtn.addEventListener('click', () => this.returnToTitle());
         }
 
         // Mobile Jump Button
@@ -217,6 +231,7 @@ export class Game {
 
     private reset() {
         console.log("Game Reset called");
+        this.canReturnToTitle = false;
 
         // Stop BGM
         if (this.currentBgm) {
@@ -353,8 +368,19 @@ export class Game {
                     }
                     // Side collision (death)
                     // Only trigger if we are significantly below the top of the platform (not just skimming the edge)
-                    else if (playerRect.x + playerRect.width > el.x + 10 && playerRect.y + playerRect.height > el.y + 15) {
-                        this.gameOver();
+                    // Increased tolerance from 15 to 22 to fix "flat ground death" bug where small offsets caused death
+                    else if (playerRect.x + playerRect.width > el.x + 10 && playerRect.y + playerRect.height > el.y + 22) {
+                        // Check if it's a head collision (hitting bottom while jumping)
+                        // If moving up AND player top is close to platform bottom
+                        const isHeadCollision = this.player.velocity.y < 0 && playerRect.y > el.y + el.height - 30;
+
+                        if (isHeadCollision) {
+                            // Bonk! Stop upward movement and push out
+                            this.player.velocity.y = 0;
+                            this.player.position.y = el.y + el.height + this.player.size.height;
+                        } else {
+                            this.gameOver();
+                        }
                     }
                 }
             } else if (el.type === 'item') {
@@ -385,9 +411,14 @@ export class Game {
                 }
             } else if (el.type === 'thorn') {
                 // Check collision with thorn
+                // Make hitbox narrower than visual (80px -> ~50px)
+                const paddingX = 15;
+                const hitX = el.x + paddingX;
+                const hitWidth = el.width - (paddingX * 2);
+
                 if (
-                    playerRect.x < el.x + el.width &&
-                    playerRect.x + playerRect.width > el.x &&
+                    playerRect.x < hitX + hitWidth &&
+                    playerRect.x + playerRect.width > hitX &&
                     playerRect.y + playerRect.height > el.y &&
                     playerRect.y < el.y + el.height
                 ) {
@@ -502,6 +533,8 @@ export class Game {
 
     private gameOver() {
         this.isGameOver = true;
+        this.canReturnToTitle = false;
+
         if (this.gameLoopId) {
             cancelAnimationFrame(this.gameLoopId);
         }
@@ -527,11 +560,23 @@ export class Game {
         const mobileControls = document.getElementById('mobile-controls');
         if (mobileControls) mobileControls.style.display = 'none';
 
+        // Prepare Score Screen
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreEl = document.getElementById('final-score');
+        const returnBtn = document.getElementById('return-title-btn');
+
+        if (gameOverScreen && finalScoreEl) {
+            finalScoreEl.innerText = Math.floor(this.score).toString();
+            gameOverScreen.classList.remove('hidden');
+
+            // Hide return button initially
+            if (returnBtn) returnBtn.classList.add('hidden');
+        }
+
         // Get player name from input (entered at start)
         const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
         const playerName = nameInput?.value || "Player";
 
-        // Submit score automatically
         // Submit score automatically
         const finalScore = Math.floor(this.score);
         fetch(`${API_BASE_URL}/scores`, {
@@ -541,35 +586,24 @@ export class Game {
                 'ngrok-skip-browser-warning': 'true'
             },
             body: JSON.stringify({ score: finalScore, name: playerName })
-        }).then(() => {
-            // Check if game was restarted while fetching
-            if (!this.isGameOver) return;
+        }).catch(err => console.error("Failed to submit score:", err));
 
-            // Show Rankings immediately
-            this.showRankings(true, finalScore);
-
-            // Auto-return to title after 3 seconds
-            setTimeout(() => {
-                // Ensure we are still in game over state (user didn't click restart manually)
-                if (this.isGameOver) {
-                    this.returnToTitle();
+        // 3 Seconds Delay before showing Title button
+        setTimeout(() => {
+            if (this.isGameOver) {
+                this.canReturnToTitle = true;
+                if (returnBtn) {
+                    returnBtn.classList.remove('hidden');
+                    returnBtn.classList.add('animate-bounce'); // Add visual cue
                 }
-            }, 3000);
-
-        }).catch(err => {
-            console.error("Failed to submit score:", err);
-            if (!this.isGameOver) return;
-            this.showRankings(true, finalScore);
-            setTimeout(() => {
-                if (this.isGameOver) {
-                    this.returnToTitle();
-                }
-            }, 3000);
-        });
+            }
+        }, 3000);
     }
 
     private returnToTitle() {
         this.isGameOver = false; // Reset flag but don't start loop
+        this.canReturnToTitle = false;
+
         if (this.gameLoopId) {
             cancelAnimationFrame(this.gameLoopId);
             this.gameLoopId = null;
@@ -583,6 +617,13 @@ export class Game {
         const gameOverScreen = document.getElementById('game-over-screen');
         if (gameOverScreen) gameOverScreen.classList.add('hidden');
 
+        // Reset Return Button style
+        const returnBtn = document.getElementById('return-title-btn');
+        if (returnBtn) {
+            returnBtn.classList.add('hidden');
+            returnBtn.classList.remove('animate-bounce');
+        }
+
         // Show start screen
         const startScreen = document.getElementById('start-screen');
         if (startScreen) startScreen.style.display = 'flex'; // Restore flex display
@@ -590,6 +631,9 @@ export class Game {
         // Hide mobile controls
         const mobileControls = document.getElementById('mobile-controls');
         if (mobileControls) mobileControls.style.display = 'none';
+
+        // Reset game state for good measure
+        this.reset();
     }
 
     public async showRankings(isGameOver: boolean = false, score?: number) {
