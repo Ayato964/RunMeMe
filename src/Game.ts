@@ -601,39 +601,25 @@ export class Game {
     }
 
     private returnToTitle() {
-        this.isGameOver = false; // Reset flag but don't start loop
-        this.canReturnToTitle = false;
+        this.reset();
 
-        if (this.gameLoopId) {
-            cancelAnimationFrame(this.gameLoopId);
-            this.gameLoopId = null;
-        }
+        // Show start screen (Must be after reset() as reset() hides it)
+        const startScreen = document.getElementById('start-screen');
+        if (startScreen) startScreen.style.display = 'flex'; // Restore flex display
 
-        // Hide rankings
-        const rankingsEl = document.getElementById('rankings-screen');
-        if (rankingsEl) rankingsEl.classList.add('hidden');
+        // Also ensure Rankings are hidden (reset does this)
 
-        // Hide Game Over screen
-        const gameOverScreen = document.getElementById('game-over-screen');
-        if (gameOverScreen) gameOverScreen.classList.add('hidden');
-
-        // Reset Return Button style
+        // Ensure Title Button is reset/hidden
         const returnBtn = document.getElementById('return-title-btn');
         if (returnBtn) {
             returnBtn.classList.add('hidden');
             returnBtn.classList.remove('animate-bounce');
         }
 
-        // Show start screen
-        const startScreen = document.getElementById('start-screen');
-        if (startScreen) startScreen.style.display = 'flex'; // Restore flex display
-
-        // Hide mobile controls
-        const mobileControls = document.getElementById('mobile-controls');
-        if (mobileControls) mobileControls.style.display = 'none';
-
-        // Reset game state for good measure
-        this.reset();
+        if (this.gameLoopId) {
+            cancelAnimationFrame(this.gameLoopId);
+            this.gameLoopId = null;
+        }
     }
 
     public async showRankings(isGameOver: boolean = false, score?: number) {
