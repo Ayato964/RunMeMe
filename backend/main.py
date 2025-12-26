@@ -42,7 +42,7 @@ class ChunkDef(BaseModel):
 # In-memory storage for scores (replace with DB for persistence)
 scores_db: List[Score] = []
 
-STAGES_DIR = Path("backend/stages")
+STAGES_DIR = Path(__file__).parent / "stages"
 
 @app.post("/scores")
 async def submit_score(score: Score):

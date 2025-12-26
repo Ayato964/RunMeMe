@@ -217,7 +217,7 @@ export class Game {
             this.currentBgm = null;
         }
 
-        const tracks = ['assets/sound/stage1.mp3', 'assets/sound/stage2.mp3'];
+        const tracks = ['assets/sound/stage1.mp3', 'assets/sound/stage2.mp3', 'assets/sound/stage3.mp3', 'assets/sound/stage4.mp3'];
         const randomTrack = tracks[Math.floor(Math.random() * tracks.length)];
 
         this.currentBgm = new Audio(randomTrack);
@@ -438,7 +438,8 @@ export class Game {
         this.score = Math.floor(this.stageManager.getTotalDistance() / 10) + this.scoreOffset;
 
         // Check fall off
-        if (this.player.position.y > LOGICAL_HEIGHT) {
+        // Game Over when player is no longer visible (top of player matches or exceeds bottom of screen)
+        if (this.player.position.y - this.player.size.height > LOGICAL_HEIGHT) {
             this.gameOver();
         }
 
