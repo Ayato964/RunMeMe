@@ -6,8 +6,8 @@ import type { GameConfig } from './types';
 export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
-    private stageManager: StageManager;
-    private player: Player;
+    private stageManager!: StageManager;
+    private player!: Player;
     private lastTime: number = 0;
     private gameLoopId: number | null = null;
     private isGameOver: boolean = false;
@@ -18,12 +18,12 @@ export class Game {
 
     private canReturnToTitle: boolean = false;
 
-    private backgroundImage: HTMLImageElement;
-    private backgroundScoreImage: HTMLImageElement;
+    private backgroundImage!: HTMLImageElement;
+    private backgroundScoreImage!: HTMLImageElement;
 
-    private jumpSound: HTMLAudioElement;
-    private itemGetSound: HTMLAudioElement;
-    private gameOverSound: HTMLAudioElement;
+    private jumpSound!: HTMLAudioElement;
+    private itemGetSound!: HTMLAudioElement;
+    private gameOverSound!: HTMLAudioElement;
 
     // Scaling properties
     private scale: number = 1;
@@ -37,10 +37,21 @@ export class Game {
         speedIncreaseRate: 0.1 // Slower speed increase
     };
 
+    private loadingAnimationId: number | null = null;
+
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
 
+        // Determine if we need to load assets or if this is a hot reload
+        // For simplicity, we always assume a load sequence on constructor init
+        this.initGame();
+    }
+
+    private async initGame() {
+        this.startLoadingAnimation();
+
+        // Initialize objects but don't start yet
         this.backgroundImage = new Image();
         this.backgroundImage.src = 'assets/background.png';
         this.backgroundScoreImage = new Image();
@@ -50,12 +61,36 @@ export class Game {
         this.itemGetSound = new Audio('assets/sound/item_get.wav');
         this.gameOverSound = new Audio('assets/sound/gameover.wav');
 
+        this.stageManager = new StageManager(this.config);
+        this.player = new Player(this.config, 100, LOGICAL_HEIGHT - 300);
+
+        // Preload Assets
+        await this.preloadAssets();
+
+        // Asset Loading Complete
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        this.stageManager = new StageManager(this.config);
-        this.player = new Player(this.config, 100, LOGICAL_HEIGHT - 300); // Start position
+        this.setupInputs();
 
+        // Hide Loading Screen
+        this.stopLoadingAnimation();
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+            loadingScreen.classList.add('opacity-0');
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 500);
+        }
+
+        // Show Start Screen (if not test mode)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('mode') === 'test') {
+            this.start();
+        }
+    }
+
+    private setupInputs() {
         // Input handling
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
@@ -96,13 +131,34 @@ export class Game {
 
         const startGame = () => {
             const name = nameInput?.value.trim().toUpperCase();
-            console.log("Start Game triggered. Name:", name);
             if (name === '[STAGEMAKER]') {
-                console.log("Redirecting to StageMaker...");
                 window.location.href = '/stagemaker.html';
-            } else {
-                this.start();
+                return;
             }
+
+            // Show loading screen for Start Game
+            const loadingScreen = document.getElementById('loading-screen');
+            if (loadingScreen) {
+                loadingScreen.style.display = 'flex';
+                // Trigger reflow
+                void loadingScreen.offsetWidth;
+                loadingScreen.classList.remove('opacity-0');
+                this.startLoadingAnimation();
+            }
+
+            // Small delay to let loading screen appear
+            setTimeout(() => {
+                this.start().then(() => {
+                    // Hide loading screen after start is done
+                    this.stopLoadingAnimation();
+                    if (loadingScreen) {
+                        loadingScreen.classList.add('opacity-0');
+                        setTimeout(() => {
+                            loadingScreen.style.display = 'none';
+                        }, 500);
+                    }
+                });
+            }, 500);
         };
 
         if (startBtn) {
@@ -167,20 +223,102 @@ export class Game {
                     this.start();
                 } else {
                     if (this.player.jump()) {
+                        this.player.jump(); // Sound played inside jump? No, logic above duplicated.
+                        // Correcting logic from original file
                         this.jumpSound.currentTime = 0;
                         this.jumpSound.play().catch(() => { });
                     }
                 }
             });
         }
+    }
 
-        // Check for Test Mode at startup
-        const urlParams = new URLSearchParams(window.location.search);
-        console.log("Game Constructor: URL Params:", window.location.search);
-        if (urlParams.get('mode') === 'test') {
-            console.log("Game Constructor: Test Mode detected, starting...");
-            this.start();
+    private startLoadingAnimation() {
+        if (this.loadingAnimationId !== null) return;
+
+        let frame = 1;
+        const charaImg = document.getElementById('loading-chara') as HTMLImageElement;
+
+        const updateFrame = () => {
+            if (charaImg) {
+                charaImg.src = frame === 1 ? 'assets/chara_run_1.png' : 'assets/chara_run_2.png';
+                frame = frame === 1 ? 2 : 1;
+            }
+        };
+
+        // Initial update
+        updateFrame();
+        // Run interval
+        this.loadingAnimationId = window.setInterval(updateFrame, 200);
+    }
+
+    private stopLoadingAnimation() {
+        if (this.loadingAnimationId !== null) {
+            clearInterval(this.loadingAnimationId);
+            this.loadingAnimationId = null;
         }
+    }
+
+    private async preloadAssets(): Promise<void> {
+        const images = [
+            'assets/background.png',
+            'assets/background_score.png',
+            'assets/chara_run_1.png',
+            'assets/chara_run_2.png',
+            'assets/chara_stop.png',
+            'assets/plant.png',
+            'assets/soil.png',
+            'assets/stone.png',
+            'assets/flower.png',
+            'assets/onigiri.png',
+            'assets/icecream.png',
+            'assets/star.png',
+            'assets/thorn.png',
+            'assets/title.png'
+        ];
+
+        const audio = [
+            'assets/sound/Jump.wav',
+            'assets/sound/item_get.wav',
+            'assets/sound/gameover.wav',
+            'assets/sound/stage1.mp3',
+            'assets/sound/stage2.mp3',
+            'assets/sound/stage3.mp3',
+            'assets/sound/stage4.mp3'
+        ];
+
+        const loadImage = (src: string) => {
+            return new Promise<void>((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve();
+                img.onerror = () => resolve(); // Don't block on error
+                img.src = src;
+            });
+        };
+
+        const loadAudio = (src: string) => {
+            return new Promise<void>((resolve) => {
+                const aud = new Audio();
+                aud.oncanplaythrough = () => resolve();
+                aud.onerror = () => resolve();
+                // Audio might assume user interaction, so simple load might timeout or fail.
+                // Just setting src might be enough to trigger cache.
+                aud.src = src;
+                // Timeout fallback
+                setTimeout(resolve, 500);
+            });
+        };
+
+        const promises = [
+            ...images.map(loadImage),
+            ...audio.map(loadAudio)
+        ];
+
+        // Wait for all, but at least show loading screen for a bit
+        await Promise.all([
+            Promise.all(promises),
+            new Promise(resolve => setTimeout(resolve, 1500)) // Minimum 1.5s loading
+        ]);
     }
 
     private resize() {
@@ -411,10 +549,10 @@ export class Game {
                 }
             } else if (el.type === 'thorn') {
                 // Check collision with thorn
-                // Make hitbox narrower than visual (80px -> ~50px)
-                const paddingX = 15;
+                // Make hitbox narrower than visual (50% of width)
+                const hitWidth = el.width * 0.5;
+                const paddingX = (el.width - hitWidth) / 2;
                 const hitX = el.x + paddingX;
-                const hitWidth = el.width - (paddingX * 2);
 
                 if (
                     playerRect.x < hitX + hitWidth &&
