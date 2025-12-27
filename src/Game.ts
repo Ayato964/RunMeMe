@@ -3,6 +3,8 @@ import { Player } from './Player';
 import { API_BASE_URL, LOGICAL_HEIGHT, LOGICAL_WIDTH } from './config';
 import type { GameConfig } from './types';
 
+import MESSAGES from './game_over_messages.json';
+
 export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
@@ -13,6 +15,13 @@ export class Game {
     private isGameOver: boolean = false;
     private score: number = 0;
     private scoreOffset: number = 0;
+
+    private collectedItems = {
+        onigiri: 0,
+        icecream: 0,
+        star: 0
+    };
+
     private speedMultiplier: number = 1.0;
     private scrollSpeed: number = 6; // pixels per frame (approx 60fps)
 
@@ -398,6 +407,7 @@ export class Game {
         this.isGameOver = false;
         this.score = 0;
         this.scoreOffset = 0;
+        this.collectedItems = { onigiri: 0, icecream: 0, star: 0 };
         this.speedMultiplier = 1.0;
         this.timeSinceLastSpeedIncrease = 0;
         this.totalPlayTime = 0;
@@ -588,6 +598,10 @@ export class Game {
                     playerRect.y < el.y + el.height
                 ) {
                     // Item collected
+                    if (el.subtype === 'onigiri' || el.subtype === 'icecream' || el.subtype === 'star') {
+                        this.collectedItems[el.subtype]++;
+                    }
+
                     if (el.subtype === 'onigiri') {
                         this.speedMultiplier = Math.max(0.5, this.speedMultiplier - 0.5);
                     } else if (el.subtype === 'icecream') {
@@ -632,10 +646,8 @@ export class Game {
         }
 
         // Score update (distance based)
-        // 1 pixel = 1 point roughly, maybe scaled down
-        // Score update (distance based + offset)
-        // 1 pixel = 1 point roughly, maybe scaled down
-        this.score = Math.floor(this.stageManager.getTotalDistance() / 10) + this.scoreOffset;
+        // 1 block (100px) = 10 points. Stepped update.
+        this.score = Math.floor(this.stageManager.getTotalDistance() / 100) * 5 + this.scoreOffset;
 
         // Check fall off
         // Game Over when player is no longer visible (top of player matches or exceeds bottom of screen)
@@ -811,27 +823,48 @@ export class Game {
         const returnBtn = document.getElementById('return-title-btn');
 
         if (gameOverScreen && finalScoreEl) {
-            finalScoreEl.innerText = Math.floor(this.score).toString();
+            // Calculate Scores
+            const baseScore = Math.floor(this.score);
+            const stars = this.player.doubleJumpCount;
+            const starBonus = stars * 200;
+            const finalScore = baseScore + starBonus;
+
+            // Random Message
+            const randomMsg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
+            const msgEl = document.getElementById('game-over-message');
+            if (msgEl) msgEl.innerText = randomMsg;
+
+            // DOM Updates
+            finalScoreEl.innerText = finalScore.toString();
+
+            const baseScoreEl = document.getElementById('base-score');
+            if (baseScoreEl) baseScoreEl.innerText = baseScore.toString();
+
+            // Detailed Items
+            const onigiriEl = document.getElementById('count-onigiri');
+            if (onigiriEl) onigiriEl.innerText = this.collectedItems.onigiri.toString();
+
+            const icecreamEl = document.getElementById('count-icecream');
+            if (icecreamEl) icecreamEl.innerText = this.collectedItems.icecream.toString();
+
+            const starEl = document.getElementById('count-star');
+            if (starEl) starEl.innerText = this.collectedItems.star.toString();
+
+            const starCountEl = document.getElementById('star-count');
+            if (starCountEl) starCountEl.innerText = stars.toString();
+
+            const starBonusEl = document.getElementById('star-bonus');
+            if (starBonusEl) starBonusEl.innerText = '+' + starBonus.toString();
+
             gameOverScreen.classList.remove('hidden');
 
             // Hide return button initially
             if (returnBtn) returnBtn.classList.add('hidden');
+
+            // Override this.score with final score so rankings use it or submission uses it
+            // Actually, best to keep this.score as base and just submit final
+            this.submitScore(finalScore);
         }
-
-        // Get player name from input (entered at start)
-        const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
-        const playerName = nameInput?.value || "Player";
-
-        // Submit score automatically
-        const finalScore = Math.floor(this.score);
-        fetch(`${API_BASE_URL}/scores`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
-            },
-            body: JSON.stringify({ score: finalScore, name: playerName })
-        }).catch(err => console.error("Failed to submit score:", err));
 
         // 3 Seconds Delay before showing Title button
         setTimeout(() => {
@@ -843,6 +876,21 @@ export class Game {
                 }
             }
         }, 3000);
+    }
+
+    private submitScore(score: number) {
+        // Get player name from input (entered at start)
+        const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
+        const playerName = nameInput?.value || "Player";
+
+        fetch(`${API_BASE_URL}/scores`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+            },
+            body: JSON.stringify({ score: score, name: playerName })
+        }).catch(err => console.error("Failed to submit score:", err));
     }
 
     private returnToTitle() {

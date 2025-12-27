@@ -44,7 +44,7 @@
           </div>
           <p class="mt-8 text-xl text-white font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-pulse">PRESS SPACE
             TO JUMP</p>
-          <div class="absolute bottom-4 right-4 text-white/50 font-mono text-sm">Ver 1.15</div>
+          <div class="absolute bottom-4 right-4 text-white/50 font-mono text-sm">Ver 1.16</div>
         </div>
       </div>
 
@@ -64,19 +64,82 @@
       </div>
 
       <!-- Game Over Screen -->
+      <!-- Game Over Screen -->
       <div id="game-over-screen"
-        class="hidden absolute inset-0 flex items-center justify-center bg-black/80 pointer-events-auto">
-        <div class="text-center">
-          <h2 class="text-5xl font-bold mb-4 text-red-500">GAME OVER</h2>
-          <p class="text-2xl mb-8">Final Score: <span id="final-score">0</span></p>
-          <button id="rankings-btn-gameover"
-            class="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-3 px-8 rounded-full text-2xl shadow-[4px_4px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black">
-            RANKINGS
-          </button>
-          <button id="return-title-btn"
-            class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-2xl shadow-[4px_4px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black ml-4">
-            TITLE
-          </button>
+        class="hidden absolute inset-0 flex items-center justify-center bg-black/90 pointer-events-auto z-50">
+        <div class="flex flex-col items-center w-full max-w-4xl p-8">
+
+          <!-- Character and Speech Bubble Area -->
+          <div class="flex items-end justify-center mb-8 w-full relative h-[300px]">
+            <!-- Character Image -->
+            <img src="assets/chara_stop.png" alt="Character" class="h-64 object-contain z-10 mr-32" />
+
+            <!-- Speech Bubble (Right of Character) -->
+            <div id="game-over-message"
+              class="absolute bg-white text-black p-6 rounded-[2rem] rounded-bl-none text-2xl font-bold border-4 border-black shadow-[8px_8px_0_rgba(0,0,0,0.5)] max-w-xs transform rotate-2 animate-bounce"
+              style="left: 60%; top: 30%;">
+              Don't give up!
+            </div>
+          </div>
+
+          <!-- Stats Container -->
+          <div class="bg-white/10 backdrop-blur-md rounded-3xl p-8 border-4 border-white/20 w-full mb-8">
+            <h2 class="text-6xl font-black text-center mb-8 text-red-500 drop-shadow-[4px_4px_0_#000]">GAME OVER</h2>
+
+            <div class="grid grid-cols-2 gap-8 text-center">
+              <div class="bg-black/40 rounded-xl p-4">
+                <div class="text-gray-400 text-sm font-bold mb-1">SCORE</div>
+                <div id="base-score" class="text-3xl font-mono">0</div>
+              </div>
+
+              <div class="bg-black/40 rounded-xl p-4">
+                <div class="text-gray-400 text-sm font-bold mb-1">ITEMS</div>
+
+                <div class="flex justify-center gap-4">
+                  <div class="flex flex-col items-center">
+                    <img src="assets/onigiri.png" class="w-8 h-8" />
+                    <span id="count-onigiri" class="font-mono text-xl">0</span>
+                  </div>
+                  <div class="flex flex-col items-center">
+                    <img src="assets/icecream.png" class="w-8 h-8" />
+                    <span id="count-icecream" class="font-mono text-xl">0</span>
+                  </div>
+                  <div class="flex flex-col items-center">
+                    <img src="assets/star.png" class="w-8 h-8" />
+                    <span id="count-star" class="font-mono text-xl">0</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-black/40 rounded-xl p-4 col-span-2">
+                <div class="text-gray-400 text-sm font-bold mb-1">STAR BONUS (+200 ea)</div>
+                <div class="flex justify-center items-center gap-2">
+                  <span id="star-count" class="text-2xl font-mono text-yellow-400">0</span>
+                  <span class="text-gray-500">x 200 =</span>
+                  <span id="star-bonus" class="text-2xl font-mono text-green-400">+0</span>
+                </div>
+              </div>
+
+              <div
+                class="col-span-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 border-4 border-white/50 transform scale-105 shadow-xl">
+                <div class="text-white/80 text-lg font-bold mb-2 tracking-widest">FINAL SCORE</div>
+                <div id="final-score" class="text-7xl font-black text-white drop-shadow-[4px_4px_0_rgba(0,0,0,0.5)]">0
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex gap-4">
+            <button id="rankings-btn-gameover"
+              class="bg-yellow-400 hover:bg-yellow-500 text-black font-black py-4 px-10 rounded-2xl text-2xl shadow-[6px_6px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black">
+              RANKING
+            </button>
+            <button id="return-title-btn"
+              class="hidden bg-blue-500 hover:bg-blue-600 text-white font-black py-4 px-10 rounded-2xl text-2xl shadow-[6px_6px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black">
+              TITLE
+            </button>
+          </div>
         </div>
       </div>
 
