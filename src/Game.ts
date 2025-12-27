@@ -39,6 +39,24 @@ export class Game {
 
     private loadingAnimationId: number | null = null;
 
+    // Level & Visuals
+    private level: number = 1;
+    private levelUpEffect = {
+        active: false,
+        timer: 0,
+        textScale: 1,
+        alpha: 1
+    };
+    private particles: Array<{
+        x: number;
+        y: number;
+        vx: number;
+        vy: number;
+        life: number;
+        color: string;
+        size: number;
+    }> = [];
+
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
@@ -383,6 +401,10 @@ export class Game {
         this.speedMultiplier = 1.0;
         this.timeSinceLastSpeedIncrease = 0;
         this.totalPlayTime = 0;
+
+        this.level = 1;
+        this.particles = [];
+        this.levelUpEffect.active = false;
         this.stageManager.reset();
         this.player = new Player(this.config, 100, LOGICAL_HEIGHT - 300);
 
@@ -456,27 +478,63 @@ export class Game {
     private update(dt: number) {
         this.totalPlayTime += dt;
 
-        // Calculate Level (1 to 8, increases every 50 seconds)
-        const level = Math.min(8, Math.floor(this.totalPlayTime / 35000) + 1);
+        // Calculate Level (1 to 8, increases every 35 seconds)
+        const newLevel = Math.min(8, Math.floor(this.totalPlayTime / 35000) + 1);
+
+        if (newLevel > this.level) {
+            this.level = newLevel;
+            // Trigger Level Up Effect
+            this.levelUpEffect.active = true;
+            this.levelUpEffect.timer = 3000;
+            this.levelUpEffect.alpha = 1;
+
+            // Spawn Particles
+            for (let i = 0; i < 30; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 5;
+                this.particles.push({
+                    x: LOGICAL_WIDTH / 2,
+                    y: LOGICAL_HEIGHT / 2,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1000 + Math.random() * 1500,
+                    color: i % 2 === 0 ? '#fbbf24' : '#ffffff', // Yellow and White
+                    size: 4 + Math.random() * 6
+                });
+            }
+        }
 
         // Calculate Interval (10s base, -1s per level)
         // Level 1: 10s, Level 2: 9s, ..., Level 5: 6s
-        const speedIncreaseInterval = (10 - (level - 1)) * 1000;
+        const speedIncreaseInterval = (10 - (this.level - 1)) * 1000;
 
         // Increase speed based on dynamic interval
         this.timeSinceLastSpeedIncrease += dt;
         if (this.timeSinceLastSpeedIncrease > speedIncreaseInterval) {
             this.speedMultiplier += this.config.speedIncreaseRate;
             this.timeSinceLastSpeedIncrease = 0;
+        }
 
-            // Visual feedback for speed up could be added here
-            const speedDisplay = document.getElementById('speed-display');
-            if (speedDisplay) {
-                speedDisplay.innerText = this.speedMultiplier.toFixed(3) + 'x (Lv.' + level + ')';
-                speedDisplay.classList.add('text-yellow-400', 'scale-125');
-                setTimeout(() => {
-                    speedDisplay.classList.remove('text-yellow-400', 'scale-125');
-                }, 500);
+        // Update Level Up Effect
+        if (this.levelUpEffect.active) {
+            this.levelUpEffect.timer -= dt;
+            if (this.levelUpEffect.timer <= 0) {
+                this.levelUpEffect.active = false;
+            } else {
+                // Flash effect or pulse
+                // const progress = this.levelUpEffect.timer / 3000; // Unused
+                this.levelUpEffect.alpha = Math.abs(Math.sin(this.levelUpEffect.timer / 100)); // Flash 
+            }
+        }
+
+        // Update Particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.x += p.vx * (dt / 16);
+            p.y += p.vy * (dt / 16);
+            p.life -= dt;
+            if (p.life <= 0) {
+                this.particles.splice(i, 1);
             }
         }
 
@@ -549,16 +607,20 @@ export class Game {
                 }
             } else if (el.type === 'thorn') {
                 // Check collision with thorn
-                // Make hitbox narrower than visual (50% of width)
+                // Hitbox: 50% width, 50% height, bottom aligned
                 const hitWidth = el.width * 0.5;
                 const paddingX = (el.width - hitWidth) / 2;
                 const hitX = el.x + paddingX;
 
+                const hitHeight = el.height * 0.5;
+                const paddingY = el.height - hitHeight;
+                const hitY = el.y + paddingY;
+
                 if (
                     playerRect.x < hitX + hitWidth &&
                     playerRect.x + playerRect.width > hitX &&
-                    playerRect.y + playerRect.height > el.y &&
-                    playerRect.y < el.y + el.height
+                    playerRect.y + playerRect.height > hitY &&
+                    playerRect.y < hitY + hitHeight
                 ) {
                     this.gameOver();
                 }
@@ -650,21 +712,65 @@ export class Game {
         this.stageManager.draw(this.ctx);
         this.player.draw(this.ctx);
 
-        // Draw Score
+        // Draw HUD
         this.ctx.fillStyle = 'white';
         this.ctx.font = 'bold 30px "Comic Sans MS", "Chalkboard SE", sans-serif';
         this.ctx.strokeStyle = 'black';
-        this.ctx.lineWidth = 4;
-        this.ctx.strokeText(`Score: ${Math.floor(this.score)}`, 20, 50);
-        this.ctx.strokeText(`Score: ${Math.floor(this.score)}`, 20, 50);
-        this.ctx.fillText(`Score: ${Math.floor(this.score)}`, 20, 50);
+        this.ctx.lineWidth = 6;
+        this.ctx.lineJoin = 'round';
 
-        // Draw Double Jump Count
+        // Score
+        const scoreText = `Score: ${Math.floor(this.score)}`;
+        this.ctx.strokeText(scoreText, 20, 50);
+        this.ctx.fillText(scoreText, 20, 50);
+
+        // Speed & Level (Below Score)
+        const statsText = `Speed: ${this.speedMultiplier.toFixed(2)}x   Lv.${this.level}`;
+        this.ctx.font = 'bold 24px "Comic Sans MS", "Chalkboard SE", sans-serif';
+        this.ctx.strokeText(statsText, 20, 85);
+        this.ctx.fillText(statsText, 20, 85);
+
+        // Double Jump Count
         if (this.player.doubleJumpCount > 0) {
             this.ctx.fillStyle = '#f6e05e'; // Yellow-400
             this.ctx.font = 'bold 24px "Comic Sans MS", sans-serif';
-            this.ctx.strokeText(`Double Jumps: ${this.player.doubleJumpCount}`, 20, 80);
-            this.ctx.fillText(`Double Jumps: ${this.player.doubleJumpCount}`, 20, 80);
+            this.ctx.strokeText(`Double Jumps: ${this.player.doubleJumpCount}`, 20, 115);
+            this.ctx.fillText(`Double Jumps: ${this.player.doubleJumpCount}`, 20, 115);
+        }
+
+        // Particles
+        for (const p of this.particles) {
+            this.ctx.fillStyle = p.color;
+            this.ctx.beginPath();
+            this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+
+        // Level Up Overlay
+        if (this.levelUpEffect.active) {
+            this.ctx.save();
+            this.ctx.globalAlpha = this.levelUpEffect.alpha;
+            this.ctx.textAlign = 'center';
+            this.ctx.lineWidth = 8;
+            this.ctx.lineJoin = 'round';
+
+            const startY = LOGICAL_HEIGHT / 2 - 20;
+
+            // Level Text
+            this.ctx.font = '900 60px "Comic Sans MS", sans-serif';
+            this.ctx.strokeStyle = 'black';
+            this.ctx.fillStyle = 'white';
+            const lvText = `LV.${this.level}`;
+            this.ctx.strokeText(lvText, LOGICAL_WIDTH / 2, startY);
+            this.ctx.fillText(lvText, LOGICAL_WIDTH / 2, startY);
+
+            // Speed Up Text
+            this.ctx.fillStyle = '#fbbf24'; // Yellow
+            const spText = 'SPEED UP!!!';
+            this.ctx.strokeText(spText, LOGICAL_WIDTH / 2, startY + 70);
+            this.ctx.fillText(spText, LOGICAL_WIDTH / 2, startY + 70);
+
+            this.ctx.restore();
         }
 
         this.ctx.restore();
