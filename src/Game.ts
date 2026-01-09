@@ -14,7 +14,9 @@ export class Game {
     private gameLoopId: number | null = null;
     private isGameOver: boolean = false;
     private score: number = 0;
-    private scoreOffset: number = 0;
+    // private scoreOffset: number = 0; // Removed in favor of direct score manipulation
+    private lastScoreDistance: number = 0;
+    private maxSpeed: number = 0;
 
     private collectedItems = {
         onigiri: 0,
@@ -406,7 +408,9 @@ export class Game {
 
         this.isGameOver = false;
         this.score = 0;
-        this.scoreOffset = 0;
+        // this.scoreOffset = 0;
+        this.lastScoreDistance = 0;
+        this.maxSpeed = 1.0;
         this.collectedItems = { onigiri: 0, icecream: 0, star: 0 };
         this.speedMultiplier = 1.0;
         this.timeSinceLastSpeedIncrease = 0;
@@ -605,7 +609,7 @@ export class Game {
                     if (el.subtype === 'onigiri') {
                         this.speedMultiplier = Math.max(0.5, this.speedMultiplier - 0.5);
                     } else if (el.subtype === 'icecream') {
-                        this.scoreOffset += 500;
+                        this.score += 500;
                     } else if (el.subtype === 'star') {
                         this.player.addDoubleJump();
                     }
@@ -645,9 +649,32 @@ export class Game {
             this.player.setGrounded(false);
         }
 
-        // Score update (distance based)
-        // 1 block (100px) = 10 points. Stepped update.
-        this.score = Math.floor(this.stageManager.getTotalDistance() / 100) * 5 + this.scoreOffset;
+        // Score update (Cumulative based on distance chunks)
+        const currentTotalDist = this.stageManager.getTotalDistance();
+        // Check how many 100px chunks we've passed since last update
+        while (currentTotalDist - this.lastScoreDistance >= 100) {
+            this.lastScoreDistance += 100;
+
+            let points = 5;
+            // Level 3+ Speed Bonus: Score = Score + 5 + (1 + Speed * 2)
+            if (this.level >= 3) {
+                points += (1 + this.speedMultiplier * 2);
+            }
+            this.score += points;
+        }
+
+        // Apply any one-time offsets (legacy support for items if needed, though items add directly now?)
+        // Actually, we should just add scoreOffset directly to score when item is collected, 
+        // but since scoreOffset was a separate variable, we can just merge it.
+        // For now, let's keep score purely cumulative and add the offset at display/Game Over time or just merge it here.
+        // Easier: Modify item collection to add directly to this.score and remove scoreOffset usage?
+        // The original code: this.score = Math.floor(dist/100)*5 + this.scoreOffset;
+        // So offset was additive. We can just keep adding to this.score.
+
+        // Track Max Speed
+        if (this.speedMultiplier > this.maxSpeed) {
+            this.maxSpeed = this.speedMultiplier;
+        }
 
         // Check fall off
         // Game Over when player is no longer visible (top of player matches or exceeds bottom of screen)
@@ -840,6 +867,12 @@ export class Game {
             const baseScoreEl = document.getElementById('base-score');
             if (baseScoreEl) baseScoreEl.innerText = baseScore.toString();
 
+            const levelEl = document.getElementById('result-level');
+            if (levelEl) levelEl.innerText = this.level.toString();
+
+            const maxSpeedEl = document.getElementById('result-max-speed');
+            if (maxSpeedEl) maxSpeedEl.innerText = this.maxSpeed.toFixed(2) + 'x';
+
             // Detailed Items
             const onigiriEl = document.getElementById('count-onigiri');
             if (onigiriEl) onigiriEl.innerText = this.collectedItems.onigiri.toString();
@@ -889,7 +922,13 @@ export class Game {
                 'Content-Type': 'application/json',
                 'ngrok-skip-browser-warning': 'true'
             },
-            body: JSON.stringify({ score: score, name: playerName })
+            body: JSON.stringify({
+                score: score,
+                name: playerName,
+                max_speed: this.maxSpeed,
+                level: this.level,
+                items: this.collectedItems
+            })
         }).catch(err => console.error("Failed to submit score:", err));
     }
 
@@ -952,9 +991,19 @@ export class Game {
                     <div class="flex justify-between items-center mb-4 border-b-2 border-dashed border-gray-400 pb-2 last:border-0">
                         <div class="flex items-center gap-4">
                             <span class="text-3xl font-black ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-500' : i === 2 ? 'text-orange-600' : 'text-black'} drop-shadow-sm">#${i + 1}</span> 
-                            <span class="text-2xl font-bold text-gray-800 truncate max-w-[200px]">${s.name}</span>
+                            <div class="flex flex-col text-left">
+                                <span class="text-2xl font-bold text-gray-800 truncate max-w-[200px]">${s.name}</span>
+                                <span class="text-xs font-bold text-gray-500">Lv.${s.level || 1} | Max Speed: ${(s.max_speed || 1.0).toFixed(2)}</span>
+                            </div>
                         </div>
-                        <span class="text-3xl font-black text-pink-500 drop-shadow-sm">${s.score}</span>
+                        <div class="flex flex-col items-end">
+                            <span class="text-3xl font-black text-pink-500 drop-shadow-sm">${s.score}</span>
+                            <div class="flex gap-1 text-xs text-gray-600">
+                                <span>🍙${s.items?.onigiri || 0}</span>
+                                <span>🍦${s.items?.icecream || 0}</span>
+                                <span>⭐${s.items?.star || 0}</span>
+                            </div>
+                        </div>
                     </div>
                 `).join('');
 

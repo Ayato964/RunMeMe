@@ -22,6 +22,9 @@ app.add_middleware(
 class Score(BaseModel):
     score: int
     name: str = "Player"
+    max_speed: float = 0.0
+    level: int = 1
+    items: dict = {} # onigiri, icecream, star
 
 # Chunk Definition Model
 class ChunkElement(BaseModel):

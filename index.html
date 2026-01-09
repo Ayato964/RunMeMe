@@ -44,7 +44,7 @@
           </div>
           <p class="mt-8 text-xl text-white font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-pulse">PRESS SPACE
             TO JUMP</p>
-          <div class="absolute bottom-4 right-4 text-white/50 font-mono text-sm">Ver 1.16</div>
+          <div class="absolute bottom-4 right-4 text-white/50 font-mono text-sm">Ver 1.17</div>
         </div>
       </div>
 
@@ -66,79 +66,99 @@
       <!-- Game Over Screen -->
       <!-- Game Over Screen -->
       <div id="game-over-screen"
-        class="hidden absolute inset-0 flex items-center justify-center bg-black/90 pointer-events-auto z-50">
-        <div class="flex flex-col items-center w-full max-w-4xl p-8">
+        class="hidden absolute inset-0 flex items-center justify-center bg-black/90 pointer-events-auto z-50 overflow-y-auto">
+        <div class="flex flex-col lg:flex-row items-center justify-center w-full max-w-6xl p-4 gap-8">
 
-          <!-- Character and Speech Bubble Area -->
-          <div class="flex items-end justify-center mb-8 w-full relative h-[300px]">
+          <!-- Left: Character and Speech Bubble -->
+          <div class="flex flex-col items-center justify-center relative w-full lg:w-1/2 h-[300px] lg:h-[500px]">
             <!-- Character Image -->
-            <img src="assets/chara_stop.png" alt="Character" class="h-64 object-contain z-10 mr-32" />
+            <img src="assets/chara_stop.png" alt="Character" class="h-64 lg:h-96 object-contain z-10" />
 
-            <!-- Speech Bubble (Right of Character) -->
+            <!-- Speech Bubble -->
             <div id="game-over-message"
-              class="absolute bg-white text-black p-6 rounded-[2rem] rounded-bl-none text-2xl font-bold border-4 border-black shadow-[8px_8px_0_rgba(0,0,0,0.5)] max-w-xs transform rotate-2 animate-bounce"
-              style="left: 60%; top: 30%;">
+              class="absolute top-10 right-10 lg:right-0 bg-white text-black p-6 rounded-[2rem] rounded-bl-none text-xl lg:text-2xl font-bold border-4 border-black shadow-[8px_8px_0_rgba(0,0,0,0.5)] max-w-[200px] transform rotate-2 animate-bounce">
               Don't give up!
             </div>
           </div>
 
-          <!-- Stats Container -->
-          <div class="bg-white/10 backdrop-blur-md rounded-3xl p-8 border-4 border-white/20 w-full mb-8">
-            <h2 class="text-6xl font-black text-center mb-8 text-red-500 drop-shadow-[4px_4px_0_#000]">GAME OVER</h2>
+          <!-- Right: Result Stats -->
+          <div class="flex flex-col w-full lg:w-1/2 gap-6">
+            <div class="bg-white/10 backdrop-blur-md rounded-3xl p-6 lg:p-8 border-4 border-white/20 w-full shadow-2xl">
+              <h2 class="text-5xl lg:text-6xl font-black text-center mb-6 text-red-500 drop-shadow-[4px_4px_0_#000]">
+                GAME OVER</h2>
 
-            <div class="grid grid-cols-2 gap-8 text-center">
-              <div class="bg-black/40 rounded-xl p-4">
-                <div class="text-gray-400 text-sm font-bold mb-1">SCORE</div>
-                <div id="base-score" class="text-3xl font-mono">0</div>
-              </div>
+              <div class="grid grid-cols-2 gap-4 text-center">
+                <!-- Base Score -->
+                <div class="bg-black/40 rounded-xl p-3">
+                  <div class="text-gray-400 text-xs font-bold uppercase">Base Score</div>
+                  <div id="base-score" class="text-2xl font-mono text-white">0</div>
+                </div>
 
-              <div class="bg-black/40 rounded-xl p-4">
-                <div class="text-gray-400 text-sm font-bold mb-1">ITEMS</div>
+                <!-- Level -->
+                <div class="bg-black/40 rounded-xl p-3">
+                  <div class="text-gray-400 text-xs font-bold uppercase">Level reached</div>
+                  <div id="result-level" class="text-2xl font-mono text-yellow-400">1</div>
+                </div>
 
-                <div class="flex justify-center gap-4">
-                  <div class="flex flex-col items-center">
-                    <img src="assets/onigiri.png" class="w-8 h-8" />
-                    <span id="count-onigiri" class="font-mono text-xl">0</span>
-                  </div>
-                  <div class="flex flex-col items-center">
-                    <img src="assets/icecream.png" class="w-8 h-8" />
-                    <span id="count-icecream" class="font-mono text-xl">0</span>
-                  </div>
-                  <div class="flex flex-col items-center">
-                    <img src="assets/star.png" class="w-8 h-8" />
-                    <span id="count-star" class="font-mono text-xl">0</span>
+                <!-- Max Speed -->
+                <div class="bg-black/40 rounded-xl p-3 col-span-2">
+                  <div class="text-gray-400 text-xs font-bold uppercase">Max Speed</div>
+                  <div id="result-max-speed" class="text-2xl font-mono text-blue-400">1.00x</div>
+                </div>
+
+                <!-- Items -->
+                <div class="bg-black/40 rounded-xl p-3 col-span-2">
+                  <div class="text-gray-400 text-xs font-bold uppercase mb-2">Items Collected</div>
+                  <div class="flex justify-center gap-6">
+                    <div class="flex flex-col items-center">
+                      <img src="assets/onigiri.png" class="w-8 h-8 mb-1" />
+                      <span id="count-onigiri" class="font-mono text-lg">0</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                      <img src="assets/icecream.png" class="w-8 h-8 mb-1" />
+                      <span id="count-icecream" class="font-mono text-lg">0</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                      <img src="assets/star.png" class="w-8 h-8 mb-1" />
+                      <span id="count-star" class="font-mono text-lg">0</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="bg-black/40 rounded-xl p-4 col-span-2">
-                <div class="text-gray-400 text-sm font-bold mb-1">STAR BONUS (+200 ea)</div>
-                <div class="flex justify-center items-center gap-2">
-                  <span id="star-count" class="text-2xl font-mono text-yellow-400">0</span>
-                  <span class="text-gray-500">x 200 =</span>
-                  <span id="star-bonus" class="text-2xl font-mono text-green-400">+0</span>
+                <!-- Star Bonus -->
+                <div class="bg-black/40 rounded-xl p-3 col-span-2 flex justify-between items-center px-6">
+                  <div class="text-left">
+                    <div class="text-gray-400 text-xs font-bold uppercase">Star Bonus</div>
+                    <div class="text-xs text-gray-500">Double Jumps x 200</div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span id="star-count" class="text-xl font-mono text-yellow-400">0</span>
+                    <span id="star-bonus" class="text-xl font-mono text-green-400">+0</span>
+                  </div>
                 </div>
-              </div>
 
-              <div
-                class="col-span-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 border-4 border-white/50 transform scale-105 shadow-xl">
-                <div class="text-white/80 text-lg font-bold mb-2 tracking-widest">FINAL SCORE</div>
-                <div id="final-score" class="text-7xl font-black text-white drop-shadow-[4px_4px_0_rgba(0,0,0,0.5)]">0
+                <!-- Final Score -->
+                <div
+                  class="col-span-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-4 border-4 border-white/50 transform scale-105 shadow-xl mt-2">
+                  <div class="text-white/80 text-sm font-bold mb-1 tracking-widest uppercase">Final Score</div>
+                  <div id="final-score"
+                    class="text-5xl lg:text-6xl font-black text-white drop-shadow-[4px_4px_0_rgba(0,0,0,0.5)]">0
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Buttons -->
-          <div class="flex gap-4">
-            <button id="rankings-btn-gameover"
-              class="bg-yellow-400 hover:bg-yellow-500 text-black font-black py-4 px-10 rounded-2xl text-2xl shadow-[6px_6px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black">
-              RANKING
-            </button>
-            <button id="return-title-btn"
-              class="hidden bg-blue-500 hover:bg-blue-600 text-white font-black py-4 px-10 rounded-2xl text-2xl shadow-[6px_6px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black">
-              TITLE
-            </button>
+            <!-- Buttons -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+              <button id="rankings-btn-gameover"
+                class="bg-yellow-400 hover:bg-yellow-500 text-black font-black py-4 px-8 rounded-xl text-xl shadow-[6px_6px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black text-center">
+                view RANKING
+              </button>
+              <button id="return-title-btn"
+                class="hidden bg-blue-500 hover:bg-blue-600 text-white font-black py-4 px-8 rounded-xl text-xl shadow-[6px_6px_0_#000] transform transition hover:-translate-y-1 active:translate-y-0 border-4 border-black text-center">
+                back to TITLE
+              </button>
+            </div>
           </div>
         </div>
       </div>
