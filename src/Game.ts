@@ -291,6 +291,10 @@ export class Game {
     private async preloadAssets(): Promise<void> {
         const images = [
             'assets/background.png',
+            'assets/background2.png',
+            'assets/background3.png',
+            'assets/background4.png',
+            'assets/background5.png',
             'assets/background_score.png',
             'assets/chara_run_1.png',
             'assets/chara_run_2.png',
@@ -465,6 +469,13 @@ export class Game {
                 scoreEl.innerText = `TEST MODE - SPEED: ${this.speedMultiplier.toFixed(1)}`;
                 document.body.appendChild(scoreEl);
             }
+        }
+
+        // Randomize Background
+        const bgNum = Math.floor(Math.random() * 5) + 1; // 1 to 5
+        const bgPath = bgNum === 1 ? 'assets/background.png' : `assets/background${bgNum}.png`;
+        if (this.backgroundImage) {
+            this.backgroundImage.src = bgPath;
         }
     }
 
