@@ -666,12 +666,7 @@ export class Game {
         while (currentTotalDist - this.lastScoreDistance >= 100) {
             this.lastScoreDistance += 100;
 
-            let points = 5;
-            // Level 3+ Speed Bonus: Score = Score + 5 + (1 + Speed * 2)
-            if (this.level >= 3) {
-                points += (1 + this.speedMultiplier * 2);
-            }
-            this.score += points;
+            this.score += 3 + (this.level * this.speedMultiplier * 2);
         }
 
         // Apply any one-time offsets (legacy support for items if needed, though items add directly now?)
