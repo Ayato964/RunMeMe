@@ -1,58 +1,32 @@
-import type { ChunkDef, ChunkElement, GameConfig } from './types';
-import { API_BASE_URL, LOGICAL_HEIGHT } from './config';
+import type { ChunkDef, ChunkElement } from './types';
+import type { IStageRepository } from './stages/IStageRepository';
+import type { IAssetManager } from './core/AssetManager';
+import { LOGICAL_HEIGHT } from './config';
 
 export class StageManager {
     private activeElements: ChunkElement[] = [];
     private totalDistance: number = 0;
-
-    private platformImage: HTMLImageElement;
-    private plantImage: HTMLImageElement;
-    private stoneImage: HTMLImageElement;
-    private soilImage: HTMLImageElement;
-    private flowerImage: HTMLImageElement;
-    private onigiriImage: HTMLImageElement;
-    private icecreamImage: HTMLImageElement;
-    private starImage: HTMLImageElement;
-    private thornImage: HTMLImageElement;
-
     private readonly BLOCK_SIZE = 100;
     private lastChunkId: string | null = null;
     private isFetching: boolean = false;
-
     private chunkQueue: ChunkDef[] = [];
-
     private testStage: ChunkDef | null = null;
     private testStagePlaced: boolean = false;
 
-    constructor(_config: GameConfig) {
-        this.platformImage = new Image();
-        this.platformImage.src = 'assets/soil.png'; // Fallback
-        this.plantImage = new Image();
-        this.plantImage.src = 'assets/plant.png';
-        this.stoneImage = new Image();
-        this.stoneImage.src = 'assets/stone.png';
-        this.soilImage = new Image();
-        this.soilImage.src = 'assets/soil.png';
-        this.flowerImage = new Image();
-        this.flowerImage.src = 'assets/flower.png';
-        this.onigiriImage = new Image();
-        this.onigiriImage.src = 'assets/onigiri.png';
-        this.icecreamImage = new Image();
-        this.icecreamImage.src = 'assets/icecream.png';
-        this.starImage = new Image();
-        this.starImage.src = 'assets/star.png';
-        this.thornImage = new Image();
-        this.thornImage.src = 'assets/thorn.png';
+    private stageRepository: IStageRepository;
+    private assetManager: IAssetManager;
 
+    constructor(stageRepository: IStageRepository, assetManager: IAssetManager) {
+        this.stageRepository = stageRepository;
+        this.assetManager = assetManager;
         this.reset();
     }
 
-    public setTestStage(stage: ChunkDef) {
-        console.log("StageManager: setTestStage called", stage);
+    public setTestStage(stage: ChunkDef): void {
         this.testStage = stage;
     }
 
-    public reset() {
+    public reset(): void {
         this.totalDistance = 0;
         this.activeElements = [];
         this.lastChunkId = null;
@@ -60,137 +34,103 @@ export class StageManager {
         this.chunkQueue = [];
         this.testStagePlaced = false;
 
-        // Initial platform - Always start with flat ground
-        // Hardcode initial chunks to prevent race conditions/falling
-        const flatChunk: ChunkDef = {
-            id: 'start_flat',
-            width: 800,
-            elements: [{ type: 'platform', x: 0, y: LOGICAL_HEIGHT - 200, width: 800, height: 200, blockType: 'grass' }]
-        };
-
-        this.addChunk(flatChunk, 0);
-        this.addChunk(flatChunk, 800);
-        this.addChunk(flatChunk, 1600);
+        // Start with flat ground chunks from repository
+        const startChunk = this.stageRepository.getStartStage();
+        this.addChunk(startChunk, 0);
+        this.addChunk(startChunk, 800);
+        this.addChunk(startChunk, 1600);
     }
 
-    public update(dt: number, speedMultiplier: number, scrollSpeed: number) {
+    private getRightmostEdge(): number {
+        let maxX = -Infinity;
+        for (let i = 0; i < this.activeElements.length; i++) {
+            const el = this.activeElements[i];
+            if (el.x + el.width > maxX) maxX = el.x + el.width;
+        }
+        return maxX === -Infinity ? 800 : maxX;
+    }
+
+    public update(dt: number, speedMultiplier: number, scrollSpeed: number): void {
         const moveAmount = scrollSpeed * speedMultiplier * (dt / 16);
         this.totalDistance += moveAmount;
 
-        // Move elements
+        // Move elements leftward
         for (let i = this.activeElements.length - 1; i >= 0; i--) {
             this.activeElements[i].x -= moveAmount;
 
-            // Remove off-screen elements
+            // Prune elements off-screen
             if (this.activeElements[i].x + this.activeElements[i].width < -100) {
                 this.activeElements.splice(i, 1);
             }
         }
 
-        // Generate new chunks
+        // Generate new chunks ahead of the screen
         const lastElement = this.activeElements[this.activeElements.length - 1];
-        // Generate well ahead of the screen (e.g., 2500px) to hide loading
         if (!lastElement || lastElement.x < 2500) {
-            // Find the rightmost x position
-            let maxX = -Infinity;
-            this.activeElements.forEach(el => {
-                if (el.x + el.width > maxX) maxX = el.x + el.width;
-            });
-
-            // If no elements, start at screen edge (shouldn't happen with proper init)
-            if (maxX === -Infinity) maxX = 800;
+            const currentEdge = this.getRightmostEdge();
 
             if (this.testStage && !this.testStagePlaced) {
-                // In test mode, place the custom stage once
-                this.addChunk(this.testStage, maxX);
+                this.addChunk(this.testStage, currentEdge);
                 this.testStagePlaced = true;
 
-                // Add a finish line or end marker? 
-                // For now, we just stop generating or add a flat end.
-                // Let's add a flat end so player can run off screen to finish
                 this.addChunk({
                     id: 'finish',
                     width: 800,
-                    elements: [{ type: 'platform', x: 0, y: LOGICAL_HEIGHT, width: 800, height: 100, blockType: 'grass' }] // Invisible or low platform
-                }, maxX + this.testStage.width);
-
+                    elements: [{ type: 'platform', x: 0, y: LOGICAL_HEIGHT, width: 800, height: 100, blockType: 'grass' }]
+                }, currentEdge + this.testStage.width);
             } else if (!this.testStage) {
-                // Normal infinite generation
                 if (this.chunkQueue.length > 0) {
                     const chunk = this.chunkQueue.shift()!;
-                    this.addChunk(chunk, maxX);
+                    this.addChunk(chunk, currentEdge);
                     if (chunk.id) this.lastChunkId = chunk.id;
                 } else if (!this.isFetching) {
-                    this.fetchAndAddChunk(maxX);
+                    this.fetchAndQueueChunks();
                 }
             }
         }
     }
 
-    private async fetchAndAddChunk(startX: number, isStart: boolean = false) {
-        if (this.isFetching && !isStart) return;
+    private async fetchAndQueueChunks(): Promise<void> {
+        if (this.isFetching) return;
         this.isFetching = true;
 
         try {
-            let url = isStart ? `${API_BASE_URL}/stage/start` : `${API_BASE_URL}/stage/random?count=20`;
-            if (!isStart && this.lastChunkId) {
-                url += `&exclude_id=${this.lastChunkId}`;
-            }
-
-            const response = await fetch(url, {
-                headers: { 'ngrok-skip-browser-warning': 'true' }
-            });
-            if (!response.ok) throw new Error('Failed to fetch stage');
-
-            if (isStart) {
-                const chunk: ChunkDef = await response.json();
-                if (chunk.id) this.lastChunkId = chunk.id;
-                this.addChunk(chunk, startX);
-            } else {
-                const chunks: ChunkDef[] = await response.json();
+            const chunks = await this.stageRepository.getRandomStages(20, this.lastChunkId);
+            if (chunks && chunks.length > 0) {
                 this.chunkQueue.push(...chunks);
-                // Add the first one immediately if needed
-                if (this.chunkQueue.length > 0) {
-                    const chunk = this.chunkQueue.shift()!;
-                    if (chunk.id) this.lastChunkId = chunk.id;
-                    this.addChunk(chunk, startX);
-                }
+                const first = this.chunkQueue.shift()!;
+                if (first.id) this.lastChunkId = first.id;
+                // Compute insertion point dynamically AT PLACEMENT TIME (never stale)
+                const currentEdge = this.getRightmostEdge();
+                this.addChunk(first, currentEdge);
             }
         } catch (error) {
-            console.error("Error fetching chunk:", error);
-            // Fallback: Add a flat chunk if fetch fails to prevent softlock
-            this.addChunk({
-                id: 'fallback',
-                width: 800,
-                elements: [{ type: 'platform', x: 0, y: 0, width: 800, height: 200, blockType: 'grass' }]
-            }, startX);
+            console.warn("Failed to retrieve stage chunks:", error);
+            const fallback = this.stageRepository.getStartStage();
+            const currentEdge = this.getRightmostEdge();
+            this.addChunk(fallback, currentEdge);
         } finally {
             this.isFetching = false;
         }
     }
 
-    private addChunk(chunk: ChunkDef, startX: number) {
+    private addChunk(chunk: ChunkDef, startX: number): void {
         const screenBottom = LOGICAL_HEIGHT;
 
         chunk.elements.forEach(el => {
             let adjustedY = el.y;
 
             if (el.type === 'platform') {
-                // Check if it's a custom stage (absolute coordinates)
                 if (chunk.id && chunk.id.startsWith('custom_')) {
-                    console.log(`Using absolute Y for custom element: ${el.y}`);
                     adjustedY = el.y;
                 } else {
-                    // Standard generation (grounded)
-                    // Enforce 2 blocks height if not specified or too small
-                    if (!el.height || el.height < this.BLOCK_SIZE) el.height = this.BLOCK_SIZE * 2;
-
-                    // Align bottom to screen bottom
+                    if (!el.height || el.height < this.BLOCK_SIZE) {
+                        el.height = this.BLOCK_SIZE * 2;
+                    }
                     adjustedY = screenBottom - el.height;
                 }
             }
 
-            // Add element
             if (el.type !== 'decoration' && el.type !== 'item_area') {
                 let finalX = startX + el.x;
                 let finalY = adjustedY;
@@ -198,34 +138,20 @@ export class StageManager {
                 let finalHeight = el.height;
 
                 if (el.type === 'thorn') {
-                    // Resize to 80x80 and place based on rotation
                     const size = 80;
                     finalWidth = size;
                     finalHeight = size;
 
-                    // Calculate position to be flush with the side
-                    // Cell center
                     const cellCenterX = startX + el.x + this.BLOCK_SIZE / 2;
                     const cellCenterY = adjustedY + this.BLOCK_SIZE / 2;
-
-                    // Offset from center (Thorn center is 10px from Cell center when flush bottom)
-                    // Cell Center: 50. Thorn Center: 60 (20 to 100). Diff: +10 Y.
                     const offset = 10;
                     const rad = (el.rotation || 0) * Math.PI / 180;
-
-                    // Rotate the offset vector (0, 10)
-                    // x' = x*cos - y*sin = 0 - 10*sin
-                    // y' = x*sin + y*cos = 0 + 10*cos
                     const offsetX = -offset * Math.sin(rad);
                     const offsetY = offset * Math.cos(rad);
 
-                    const thornCenterX = cellCenterX + offsetX;
-                    const thornCenterY = cellCenterY + offsetY;
-
-                    finalX = thornCenterX - size / 2;
-                    finalY = thornCenterY - size / 2;
+                    finalX = (cellCenterX + offsetX) - size / 2;
+                    finalY = (cellCenterY + offsetY) - size / 2;
                 } else if (el.type === 'item') {
-                    // Resize to 50x50 and place at center
                     const size = 50;
                     finalWidth = size;
                     finalHeight = size;
@@ -242,7 +168,6 @@ export class StageManager {
                 });
             }
 
-            // Add decorations relative to the new Y
             if (el.type === 'platform') {
                 const numDecorations = Math.floor(Math.random() * 3);
                 for (let i = 0; i < numDecorations; i++) {
@@ -264,7 +189,6 @@ export class StageManager {
                 }
             }
 
-            // Handle Item Areas
             if (el.type === 'item_area') {
                 const cols = Math.ceil(el.width / this.BLOCK_SIZE);
                 const rows = Math.ceil(el.height / this.BLOCK_SIZE);
@@ -274,20 +198,18 @@ export class StageManager {
                         const bx = startX + el.x + c * this.BLOCK_SIZE;
                         const by = adjustedY + r * this.BLOCK_SIZE;
 
-                        // Random generation
                         const rand = Math.random();
                         let itemType: 'onigiri' | 'icecream' | 'star' | null = null;
 
                         if (rand < 0.01) {
-                            itemType = 'star'; // 1%
-                        } else if (rand < 0.02) { // 0.01 + 0.02
-                            itemType = 'onigiri'; // 2%
-                        } else if (rand < 0.22) { // 0.02 + 0.20
-                            itemType = 'icecream'; // 20%
+                            itemType = 'star';
+                        } else if (rand < 0.03) {
+                            itemType = 'onigiri';
+                        } else if (rand < 0.23) {
+                            itemType = 'icecream';
                         }
 
                         if (itemType) {
-                            // Center item in block
                             const itemSize = 50;
                             const offset = (this.BLOCK_SIZE - itemSize) / 2;
 
@@ -306,10 +228,10 @@ export class StageManager {
         });
     }
 
-    public draw(ctx: CanvasRenderingContext2D) {
-        this.activeElements.forEach(el => {
+    public draw(ctx: CanvasRenderingContext2D): void {
+        for (let i = 0; i < this.activeElements.length; i++) {
+            const el = this.activeElements[i];
             ctx.save();
-            // Translate to center of block for rotation
             const centerX = el.x + el.width / 2;
             const centerY = el.y + el.height / 2;
             ctx.translate(centerX, centerY);
@@ -318,8 +240,6 @@ export class StageManager {
 
             if (el.type === 'platform') {
                 const blockType = el.blockType || 'grass';
-
-                // Draw blocks
                 const cols = Math.ceil(el.width / this.BLOCK_SIZE);
                 const rows = Math.ceil(el.height / this.BLOCK_SIZE);
 
@@ -327,20 +247,19 @@ export class StageManager {
                     for (let c = 0; c < cols; c++) {
                         const bx = el.x + c * this.BLOCK_SIZE;
                         const by = el.y + r * this.BLOCK_SIZE;
-
-                        // Clip to platform bounds
                         const bWidth = Math.min(this.BLOCK_SIZE, el.x + el.width - bx);
                         const bHeight = Math.min(this.BLOCK_SIZE, el.y + el.height - by);
 
                         if (bWidth <= 0 || bHeight <= 0) continue;
 
-                        let img = this.soilImage;
+                        let imgPath = 'assets/soil.png';
                         if (blockType === 'grass' && r === 0) {
-                            img = this.plantImage;
+                            imgPath = 'assets/plant.png';
                         } else if (blockType === 'stone') {
-                            img = this.stoneImage;
+                            imgPath = 'assets/stone.png';
                         }
 
+                        const img = this.assetManager.getImage(imgPath);
                         if (img.complete) {
                             ctx.drawImage(img, bx, by, bWidth, bHeight);
                         } else {
@@ -350,38 +269,41 @@ export class StageManager {
                     }
                 }
             } else if (el.type === 'decoration') {
-                let img = this.stoneImage;
-                if (el.subtype === 'plant') img = this.plantImage;
-                else if (el.subtype === 'flower') img = this.flowerImage;
+                let imgPath = 'assets/stone.png';
+                if (el.subtype === 'plant') imgPath = 'assets/plant.png';
+                else if (el.subtype === 'flower') imgPath = 'assets/flower.png';
 
+                const img = this.assetManager.getImage(imgPath);
                 if (img.complete) {
                     ctx.drawImage(img, el.x, el.y, el.width, el.height);
                 }
             } else if (el.type === 'item') {
-                let img = this.onigiriImage;
-                if (el.subtype === 'icecream') img = this.icecreamImage;
-                else if (el.subtype === 'star') img = this.starImage;
+                let imgPath = 'assets/onigiri.png';
+                if (el.subtype === 'icecream') imgPath = 'assets/icecream.png';
+                else if (el.subtype === 'star') imgPath = 'assets/star.png';
 
+                const img = this.assetManager.getImage(imgPath);
                 if (img.complete) {
                     ctx.drawImage(img, el.x, el.y, el.width, el.height);
                 }
             } else if (el.type === 'thorn') {
-                if (this.thornImage.complete) {
-                    ctx.drawImage(this.thornImage, el.x, el.y, el.width, el.height);
+                const img = this.assetManager.getImage('assets/thorn.png');
+                if (img.complete) {
+                    ctx.drawImage(img, el.x, el.y, el.width, el.height);
                 } else {
                     ctx.fillStyle = 'purple';
                     ctx.fillRect(el.x, el.y, el.width, el.height);
                 }
             }
             ctx.restore();
-        });
+        }
     }
 
-    public getElements() {
+    public getElements(): ChunkElement[] {
         return this.activeElements;
     }
 
-    public getTotalDistance() {
+    public getTotalDistance(): number {
         return this.totalDistance;
     }
 }

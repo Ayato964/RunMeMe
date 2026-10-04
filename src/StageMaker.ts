@@ -1,5 +1,6 @@
-import { API_BASE_URL, LOGICAL_HEIGHT, LOGICAL_WIDTH } from './config';
+import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './config';
 import type { ChunkDef } from './types';
+import { HybridStageRepository } from './stages/HybridStageRepository';
 
 export class StageMaker {
     private canvas: HTMLCanvasElement;
@@ -45,12 +46,49 @@ export class StageMaker {
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        // Input handling
+        // Input handling (Mouse)
         this.canvas.addEventListener('mousedown', (e) => this.handleInput(e));
         this.canvas.addEventListener('mousemove', (e) => {
             if (e.buttons === 1) { // Drag to paint/erase
                 this.handleInput(e);
             }
+        });
+
+        // Touch handling (Mobile & Touchscreens)
+        let lastTouchX = 0;
+        let isTouching = false;
+
+        this.canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                isTouching = true;
+                const touch = e.touches[0];
+                lastTouchX = touch.clientX;
+                if (this.selectedTool) {
+                    this.handleInput({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent);
+                }
+            }
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            if (!isTouching || e.touches.length === 0) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - lastTouchX;
+            lastTouchX = touch.clientX;
+
+            if (this.selectedTool) {
+                this.handleInput({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent);
+            } else {
+                // Pan camera on drag when no tool is active
+                this.cameraX -= deltaX;
+                const maxScroll = Math.max(0, this.currentStage.width - LOGICAL_WIDTH);
+                this.cameraX = Math.max(0, Math.min(this.cameraX, maxScroll));
+                this.draw();
+            }
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchend', () => {
+            isTouching = false;
         });
 
         // Wheel to pan
@@ -205,37 +243,50 @@ export class StageMaker {
         }
 
         // 1. Load Draft & Meta FIRST
-        const draft = localStorage.getItem('stageMakerDraft');
-        const draftMeta = localStorage.getItem('stageMakerDraftMeta');
+        try {
+            const draft = localStorage.getItem('stageMakerDraft');
+            const draftMeta = localStorage.getItem('stageMakerDraftMeta');
 
-        if (draft) {
-            try {
-                this.currentStage = JSON.parse(draft);
-                if (draftMeta) {
-                    this.clearedSpeeds = JSON.parse(draftMeta);
+            if (draft) {
+                const parsed = JSON.parse(draft);
+                if (parsed && typeof parsed === 'object') {
+                    this.currentStage = parsed;
                 }
-            } catch (e) {
-                console.error("Failed to load draft", e);
+                if (draftMeta) {
+                    const parsedMeta = JSON.parse(draftMeta);
+                    if (parsedMeta && typeof parsedMeta === 'object') {
+                        this.clearedSpeeds = parsedMeta;
+                    }
+                }
+            } else {
+                // Fallback: If no draft but we have a testStage
+                const savedStage = localStorage.getItem('testStage');
+                if (savedStage) {
+                    const parsed = JSON.parse(savedStage);
+                    if (parsed && typeof parsed === 'object') {
+                        this.currentStage = parsed;
+                    }
+                }
             }
-        } else {
-            // Fallback: If no draft but we have a testStage (rare case if local storage was cleared but not testStage?)
-            const savedStage = localStorage.getItem('testStage');
-            if (savedStage) {
-                this.currentStage = JSON.parse(savedStage);
-            }
+        } catch (e) {
+            console.warn("Failed to load draft safely:", e);
         }
 
         // 2. Process Test Completion (Merge results)
-        const lastTestSpeed = localStorage.getItem('testSpeed');
-        const testCompleted = localStorage.getItem('testCompleted') === 'true';
+        try {
+            const lastTestSpeed = localStorage.getItem('testSpeed');
+            const testCompleted = localStorage.getItem('testCompleted') === 'true';
 
-        if (testCompleted && lastTestSpeed) {
-            // Mark as cleared
-            this.clearedSpeeds[lastTestSpeed] = true;
-            localStorage.removeItem('testCompleted'); // Consume the flag
+            if (testCompleted && lastTestSpeed) {
+                // Mark as cleared
+                this.clearedSpeeds[lastTestSpeed] = true;
+                localStorage.removeItem('testCompleted'); // Consume the flag
 
-            // Save immediately so we don't lose it on refresh
-            this.saveDraft();
+                // Save immediately so we don't lose it on refresh
+                this.saveDraft();
+            }
+        } catch (e) {
+            console.warn("Failed to process test completion safely:", e);
         }
 
         // 3. Update UI based on state
@@ -316,25 +367,19 @@ export class StageMaker {
 
     private async publishStage() {
         try {
-            const response = await fetch(`${API_BASE_URL}/stage`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'ngrok-skip-browser-warning': 'true'
-                },
-                body: JSON.stringify(this.currentStage)
-            });
-
-            if (response.ok) {
-                alert("Stage Published Successfully!");
-                localStorage.removeItem('testCompleted');
-                localStorage.removeItem('testStage');
-                localStorage.removeItem('stageMakerDraft'); // Clear draft
-                localStorage.removeItem('stageMakerDraftMeta');
-                window.location.href = '/index.html';
-            } else {
-                alert("Failed to publish stage.");
+            if (!this.currentStage.id) {
+                this.currentStage.id = `custom_${Date.now()}`;
             }
+
+            const repo = new HybridStageRepository();
+            await repo.saveCustomStage(this.currentStage);
+
+            alert("Stage Published Successfully!");
+            localStorage.removeItem('testCompleted');
+            localStorage.removeItem('testStage');
+            localStorage.removeItem('stageMakerDraft'); // Clear draft
+            localStorage.removeItem('stageMakerDraftMeta');
+            window.location.href = '/index.html';
         } catch (error) {
             console.error("Publish error:", error);
             alert("Error publishing stage.");
@@ -526,8 +571,12 @@ export class StageMaker {
     }
 
     private saveDraft() {
-        localStorage.setItem('stageMakerDraft', JSON.stringify(this.currentStage));
-        localStorage.setItem('stageMakerDraftMeta', JSON.stringify(this.clearedSpeeds));
+        try {
+            localStorage.setItem('stageMakerDraft', JSON.stringify(this.currentStage));
+            localStorage.setItem('stageMakerDraftMeta', JSON.stringify(this.clearedSpeeds));
+        } catch (e) {
+            console.warn("Storage quota exceeded or storage disabled:", e);
+        }
     }
 
     private loop() {

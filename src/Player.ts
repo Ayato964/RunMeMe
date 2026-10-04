@@ -1,48 +1,35 @@
 import type { GameConfig, Rect, Vector2 } from './types';
+import type { IAssetManager } from './core/AssetManager';
 
 export class Player {
     public position: Vector2;
     public velocity: Vector2;
     public size: Rect;
     public isGrounded: boolean = false;
-
-    private config: GameConfig;
-    private images: { run1: HTMLImageElement, run2: HTMLImageElement, stop: HTMLImageElement };
-    private currentFrame: number = 0;
-    private frameTimer: number = 0;
-    private animationSpeed: number = 0.1; // Switch every 100ms
-
     public doubleJumpCount: number = 0;
 
-    constructor(config: GameConfig, startX: number, startY: number) {
+    private config: GameConfig;
+    private assetManager: IAssetManager;
+    private currentFrame: number = 0;
+    private frameTimer: number = 0;
+    private readonly animationSpeed: number = 0.1; // 100ms per frame
+
+    constructor(config: GameConfig, assetManager: IAssetManager, startX: number, startY: number) {
         this.config = config;
+        this.assetManager = assetManager;
         this.position = { x: startX, y: startY };
         this.velocity = { x: 0, y: 0 };
-        this.size = { x: 0, y: 0, width: 60, height: 80 }; // Adjusted size for sprites
-
-        this.images = {
-            run1: new Image(),
-            run2: new Image(),
-            stop: new Image()
-        };
-        this.images.run1.src = 'assets/chara_run_1.png';
-        this.images.run2.src = 'assets/chara_run_2.png';
-        this.images.stop.src = 'assets/chara_stop.png';
+        this.size = { x: 0, y: 0, width: 60, height: 80 };
     }
 
-    public update(dt: number, speedMultiplier: number) {
+    public update(dt: number, speedMultiplier: number): void {
         // Apply gravity
         this.velocity.y += this.config.gravity * (dt / 16);
 
         // Apply velocity
         this.position.y += this.velocity.y * (dt / 16);
 
-        // Ground collision is handled by Game class
-        if (this.position.y > 2000) { // Safety net
-            // Let it fall, Game over will trigger
-        }
-
-        // Update animation
+        // Animation update
         this.frameTimer += dt / 1000;
         if (this.frameTimer > this.animationSpeed / Math.max(1, speedMultiplier)) {
             this.frameTimer = 0;
@@ -58,18 +45,16 @@ export class Player {
         } else if (this.doubleJumpCount > 0) {
             this.velocity.y = this.config.jumpForce;
             this.doubleJumpCount--;
-            // Optional: Visual effect for double jump
             return true;
         }
         return false;
     }
 
-    public addDoubleJump() {
+    public addDoubleJump(): void {
         this.doubleJumpCount++;
     }
 
-    public stopJump() {
-        // If moving up, cut the jump short
+    public stopJump(): void {
         if (this.velocity.y < -5) {
             this.velocity.y = -5;
         }
@@ -84,32 +69,30 @@ export class Player {
         };
     }
 
-    public land(y: number) {
+    public land(y: number): void {
         this.position.y = y;
         this.velocity.y = 0;
         this.isGrounded = true;
     }
 
-    public setGrounded(grounded: boolean) {
+    public setGrounded(grounded: boolean): void {
         this.isGrounded = grounded;
     }
 
-    public draw(ctx: CanvasRenderingContext2D) {
-        let img = this.images.stop;
+    public draw(ctx: CanvasRenderingContext2D): void {
+        let imgPath = 'assets/chara_stop.png';
 
         if (!this.isGrounded) {
-            // Jumping/Falling
-            img = this.images.run2;
+            imgPath = 'assets/chara_run_2.png';
         } else {
-            // Running
-            img = this.currentFrame === 0 ? this.images.run1 : this.images.run2;
+            imgPath = this.currentFrame === 0 ? 'assets/chara_run_1.png' : 'assets/chara_run_2.png';
         }
 
+        const img = this.assetManager.getImage(imgPath);
         if (img.complete) {
             ctx.drawImage(img, this.position.x, this.position.y - this.size.height, this.size.width, this.size.height);
         } else {
-            // Fallback
-            ctx.fillStyle = '#ed64a6'; // Pink-500
+            ctx.fillStyle = '#ed64a6';
             ctx.fillRect(this.position.x, this.position.y - this.size.height, this.size.width, this.size.height);
         }
     }

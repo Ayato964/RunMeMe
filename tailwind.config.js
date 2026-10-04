@@ -2,6 +2,7 @@
 export default {
   content: [
     "./index.html",
+    "./stagemaker.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {

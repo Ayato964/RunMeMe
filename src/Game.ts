@@ -1,22 +1,56 @@
 import { StageManager } from './StageManager';
 import { Player } from './Player';
-import { API_BASE_URL, LOGICAL_HEIGHT, LOGICAL_WIDTH } from './config';
+import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from './config';
 import type { GameConfig } from './types';
+import { AssetManager } from './core/AssetManager';
+import { InputManager } from './core/InputManager';
+import { CollisionSystem } from './core/CollisionSystem';
+import { ItemRegistry } from './domain/items/ItemRegistry';
+import { HybridStageRepository } from './stages/HybridStageRepository';
+import type { IStageRepository } from './stages/IStageRepository';
+import { UIManager } from './ui/UIManager';
+import type { GamePlayContext } from './domain/items/ItemStrategy';
 
-import MESSAGES from './game_over_messages.json';
+interface Particle {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    life: number;
+    color: string;
+    size: number;
+}
 
 export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
-    private stageManager!: StageManager;
-    private player!: Player;
+
+    // Core Managers & Systems
+    private assetManager: AssetManager;
+    private stageRepository: IStageRepository;
+    private stageManager: StageManager;
+    private player: Player;
+    private collisionSystem: CollisionSystem;
+    private itemRegistry: ItemRegistry;
+    private uiManager: UIManager;
+    private inputManager!: InputManager;
+
+    // Game Loop & Timing
     private lastTime: number = 0;
     private gameLoopId: number | null = null;
     private isGameOver: boolean = false;
+    private canReturnToTitle: boolean = false;
+    private totalPlayTime: number = 0;
+    private timeSinceLastSpeedIncrease: number = 0;
+
+    // Scoring & Progression
     private score: number = 0;
-    // private scoreOffset: number = 0; // Removed in favor of direct score manipulation
     private lastScoreDistance: number = 0;
-    private maxSpeed: number = 0;
+    private maxSpeed: number = 1.0;
+    private speedMultiplier: number = 1.0;
+    private readonly scrollSpeed: number = 6;
+    private level: number = 1;
+    private testFinishDistance: number | null = null;
 
     private collectedItems = {
         onigiri: 0,
@@ -24,341 +58,100 @@ export class Game {
         star: 0
     };
 
-    private speedMultiplier: number = 1.0;
-    private scrollSpeed: number = 6; // pixels per frame (approx 60fps)
-
-    private canReturnToTitle: boolean = false;
-
-    private backgroundImage!: HTMLImageElement;
-    private backgroundScoreImage!: HTMLImageElement;
-
-    private jumpSound!: HTMLAudioElement;
-    private itemGetSound!: HTMLAudioElement;
-    private gameOverSound!: HTMLAudioElement;
-
-    // Scaling properties
+    // Scaling & Viewport
     private scale: number = 1;
     private offsetX: number = 0;
     private offsetY: number = 0;
+    private backgroundIndex: number = 1;
 
-    private readonly config: GameConfig = {
-        gravity: 0.6, // Reasonable gravity
-        jumpForce: -15, // Jump force
-        baseSpeed: 6, // Base speed
-        speedIncreaseRate: 0.1 // Slower speed increase
-    };
-
-    private loadingAnimationId: number | null = null;
-
-    // Level & Visuals
-    private level: number = 1;
+    // Visual Effects
     private levelUpEffect = {
         active: false,
         timer: 0,
-        textScale: 1,
         alpha: 1
     };
-    private particles: Array<{
-        x: number;
-        y: number;
-        vx: number;
-        vy: number;
-        life: number;
-        color: string;
-        size: number;
-    }> = [];
+    private particles: Particle[] = [];
+
+    private readonly config: GameConfig = {
+        gravity: 0.6,
+        jumpForce: -15,
+        baseSpeed: 6,
+        speedIncreaseRate: 0.1
+    };
 
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
 
-        // Determine if we need to load assets or if this is a hot reload
-        // For simplicity, we always assume a load sequence on constructor init
+        // Instantiate decoupled subsystems (DIP)
+        this.assetManager = new AssetManager();
+        this.stageRepository = new HybridStageRepository();
+        this.stageManager = new StageManager(this.stageRepository, this.assetManager);
+        this.player = new Player(this.config, this.assetManager, 100, LOGICAL_HEIGHT - 300);
+        this.itemRegistry = new ItemRegistry();
+        this.collisionSystem = new CollisionSystem(this.itemRegistry, this.assetManager);
+        this.uiManager = new UIManager();
+
         this.initGame();
     }
 
-    private async initGame() {
-        this.startLoadingAnimation();
+    private async initGame(): Promise<void> {
+        this.uiManager.showLoading();
 
-        // Initialize objects but don't start yet
-        this.backgroundImage = new Image();
-        this.backgroundImage.src = 'assets/background.png';
-        this.backgroundScoreImage = new Image();
-        this.backgroundScoreImage.src = 'assets/background_score.png';
-
-        this.jumpSound = new Audio('assets/sound/Jump.wav');
-        this.itemGetSound = new Audio('assets/sound/item_get.wav');
-        this.gameOverSound = new Audio('assets/sound/gameover.wav');
-
-        this.stageManager = new StageManager(this.config);
-        this.player = new Player(this.config, 100, LOGICAL_HEIGHT - 300);
-
-        // Preload Assets
-        await this.preloadAssets();
-
-        // Asset Loading Complete
+        this.setupInputs();
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        this.setupInputs();
+        // Preload assets asynchronously
+        await this.assetManager.preloadAll();
+        this.uiManager.hideLoading();
 
-        // Hide Loading Screen
-        this.stopLoadingAnimation();
-        const loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-            loadingScreen.classList.add('opacity-0');
-            setTimeout(() => {
-                loadingScreen.style.display = 'none';
-            }, 500);
-        }
-
-        // Show Start Screen (if not test mode)
+        // Check for test mode
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('mode') === 'test') {
             this.start();
         }
     }
 
-    private setupInputs() {
-        // Input handling
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                if (this.isGameOver) {
-                    if (this.canReturnToTitle) {
-                        this.returnToTitle();
-                    }
-                } else {
-                    const startScreen = document.getElementById('start-screen');
-                    if (startScreen && startScreen.style.display !== 'none') {
-                        document.getElementById('start-btn')?.click();
-                    } else {
-                        if (this.player.jump()) {
-                            this.jumpSound.currentTime = 0;
-                            this.jumpSound.play().catch(() => { });
-                        }
-                    }
-                }
-            }
-        });
-
-        // Touch handling
-        this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Prevent scrolling
-            if (this.isGameOver) {
-                this.start();
-            } else {
-                if (this.player.jump()) {
-                    this.jumpSound.currentTime = 0;
-                    this.jumpSound.play().catch(() => { });
-                }
-            }
-        }, { passive: false });
-
-        // UI Event Listeners
-        const startBtn = document.getElementById('start-btn');
-        const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
-
-        const startGame = () => {
-            const name = nameInput?.value.trim().toUpperCase();
-            if (name === '[STAGEMAKER]') {
-                window.location.href = '/stagemaker.html';
-                return;
-            }
-
-            // Show loading screen for Start Game
-            const loadingScreen = document.getElementById('loading-screen');
-            if (loadingScreen) {
-                loadingScreen.style.display = 'flex';
-                // Trigger reflow
-                void loadingScreen.offsetWidth;
-                loadingScreen.classList.remove('opacity-0');
-                this.startLoadingAnimation();
-            }
-
-            // Small delay to let loading screen appear
-            setTimeout(() => {
-                this.start().then(() => {
-                    // Hide loading screen after start is done
-                    this.stopLoadingAnimation();
-                    if (loadingScreen) {
-                        loadingScreen.classList.add('opacity-0');
-                        setTimeout(() => {
-                            loadingScreen.style.display = 'none';
-                        }, 500);
-                    }
-                });
-            }, 500);
-        };
-
-        if (startBtn) {
-            startBtn.addEventListener('click', startGame);
-        }
-
-        if (nameInput) {
-            nameInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    startGame();
-                }
-            });
-        }
-
-        // Rankings Buttons
-        const rankingsBtnStart = document.getElementById('rankings-btn-start');
-        if (rankingsBtnStart) {
-            rankingsBtnStart.addEventListener('click', () => this.showRankings());
-        }
-        const rankingsBtnGameOver = document.getElementById('rankings-btn-gameover');
-        if (rankingsBtnGameOver) {
-            rankingsBtnGameOver.addEventListener('click', () => this.showRankings());
-        }
-
-        const closeRankingsBtn = document.getElementById('close-rankings-btn');
-        if (closeRankingsBtn) {
-            closeRankingsBtn.addEventListener('click', () => {
-                const rankingsScreen = document.getElementById('rankings-screen');
-                if (rankingsScreen) rankingsScreen.classList.add('hidden');
-            });
-        }
-
-        const restartBtn = document.getElementById('restart-btn');
-        if (restartBtn) {
-            restartBtn.addEventListener('click', () => this.reset());
-        }
-
-        const returnTitleBtn = document.getElementById('return-title-btn');
-        if (returnTitleBtn) {
-            returnTitleBtn.addEventListener('click', () => this.returnToTitle());
-        }
-
-        // Mobile Jump Button
-        const jumpBtn = document.getElementById('mobile-jump-btn');
-        if (jumpBtn) {
-            jumpBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (this.isGameOver) {
-                    this.start();
-                } else {
+    private setupInputs(): void {
+        this.inputManager = new InputManager(
+            this.canvas,
+            {
+                onJump: () => {
                     if (this.player.jump()) {
-                        this.jumpSound.currentTime = 0;
-                        this.jumpSound.play().catch(() => { });
+                        this.assetManager.playSfx('assets/sound/Jump.wav');
                     }
+                },
+                onStartGame: () => {
+                    // Crucial: Trigger audio unlock synchronously inside the user activation event call stack!
+                    this.assetManager.playRandomBgm();
+                    this.uiManager.showLoading();
+                    setTimeout(() => {
+                        this.start(false).then(() => {
+                            this.uiManager.hideLoading();
+                        });
+                    }, 500);
+                },
+                onReturnToTitle: () => {
+                    this.returnToTitle();
+                },
+                onShowRankings: () => {
+                    this.showRankings();
+                },
+                onCloseRankings: () => {
+                    this.uiManager.hideRankingsScreen();
                 }
-            }, { passive: false });
-
-            // Also handle click for testing on desktop
-            jumpBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (this.isGameOver) {
-                    this.start();
-                } else {
-                    if (this.player.jump()) {
-                        this.player.jump(); // Sound played inside jump? No, logic above duplicated.
-                        // Correcting logic from original file
-                        this.jumpSound.currentTime = 0;
-                        this.jumpSound.play().catch(() => { });
-                    }
-                }
-            });
-        }
+            },
+            () => this.isGameOver,
+            () => this.canReturnToTitle,
+            () => this.uiManager.isStartScreenVisible()
+        );
     }
 
-    private startLoadingAnimation() {
-        if (this.loadingAnimationId !== null) return;
-
-        let frame = 1;
-        const charaImg = document.getElementById('loading-chara') as HTMLImageElement;
-
-        const updateFrame = () => {
-            if (charaImg) {
-                charaImg.src = frame === 1 ? 'assets/chara_run_1.png' : 'assets/chara_run_2.png';
-                frame = frame === 1 ? 2 : 1;
-            }
-        };
-
-        // Initial update
-        updateFrame();
-        // Run interval
-        this.loadingAnimationId = window.setInterval(updateFrame, 200);
-    }
-
-    private stopLoadingAnimation() {
-        if (this.loadingAnimationId !== null) {
-            clearInterval(this.loadingAnimationId);
-            this.loadingAnimationId = null;
-        }
-    }
-
-    private async preloadAssets(): Promise<void> {
-        const images = [
-            'assets/background.png',
-            'assets/background2.png',
-            'assets/background3.png',
-            'assets/background4.png',
-            'assets/background5.png',
-            'assets/background_score.png',
-            'assets/chara_run_1.png',
-            'assets/chara_run_2.png',
-            'assets/chara_stop.png',
-            'assets/plant.png',
-            'assets/soil.png',
-            'assets/stone.png',
-            'assets/flower.png',
-            'assets/onigiri.png',
-            'assets/icecream.png',
-            'assets/star.png',
-            'assets/thorn.png',
-            'assets/title.png'
-        ];
-
-        const audio = [
-            'assets/sound/Jump.wav',
-            'assets/sound/item_get.wav',
-            'assets/sound/gameover.wav',
-            'assets/sound/stage1.mp3',
-            'assets/sound/stage2.mp3',
-            'assets/sound/stage3.mp3',
-            'assets/sound/stage4.mp3'
-        ];
-
-        const loadImage = (src: string) => {
-            return new Promise<void>((resolve) => {
-                const img = new Image();
-                img.onload = () => resolve();
-                img.onerror = () => resolve(); // Don't block on error
-                img.src = src;
-            });
-        };
-
-        const loadAudio = (src: string) => {
-            return new Promise<void>((resolve) => {
-                const aud = new Audio();
-                aud.oncanplaythrough = () => resolve();
-                aud.onerror = () => resolve();
-                // Audio might assume user interaction, so simple load might timeout or fail.
-                // Just setting src might be enough to trigger cache.
-                aud.src = src;
-                // Timeout fallback
-                setTimeout(resolve, 500);
-            });
-        };
-
-        const promises = [
-            ...images.map(loadImage),
-            ...audio.map(loadAudio)
-        ];
-
-        // Wait for all, but at least show loading screen for a bit
-        await Promise.all([
-            Promise.all(promises),
-            new Promise(resolve => setTimeout(resolve, 1500)) // Minimum 1.5s loading
-        ]);
-    }
-
-    private resize() {
+    private resize(): void {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
 
-        // Calculate scale to fit 16:9 aspect ratio within the window
         const scaleX = this.canvas.width / LOGICAL_WIDTH;
         const scaleY = this.canvas.height / LOGICAL_HEIGHT;
         this.scale = Math.min(scaleX, scaleY);
@@ -367,12 +160,12 @@ export class Game {
         this.offsetY = (this.canvas.height - LOGICAL_HEIGHT * this.scale) / 2;
     }
 
-    private currentBgm: HTMLAudioElement | null = null;
-
-    public async start() {
+    public async start(playBgm: boolean = true): Promise<void> {
         try {
             this.reset();
-            this.playRandomBGM();
+            if (playBgm) {
+                this.assetManager.playRandomBgm();
+            }
             if (!this.gameLoopId) {
                 this.loop(performance.now());
             }
@@ -382,138 +175,86 @@ export class Game {
         }
     }
 
-    private playRandomBGM() {
-        if (this.currentBgm) {
-            this.currentBgm.pause();
-            this.currentBgm = null;
-        }
-
-        const tracks = ['assets/sound/stage1.mp3', 'assets/sound/stage2.mp3', 'assets/sound/stage3.mp3', 'assets/sound/stage4.mp3'];
-        const randomTrack = tracks[Math.floor(Math.random() * tracks.length)];
-
-        this.currentBgm = new Audio(randomTrack);
-        this.currentBgm.volume = 0.5; // Reasonable volume
-        this.currentBgm.play().catch(e => console.error("BGM Play failed:", e));
-
-        this.currentBgm.addEventListener('ended', () => {
-            this.playRandomBGM(); // Play next random track
-        });
-    }
-
-    private reset() {
-        console.log("Game Reset called");
+    private reset(): void {
         this.canReturnToTitle = false;
-
-        // Stop BGM
-        if (this.currentBgm) {
-            this.currentBgm.pause();
-            this.currentBgm = null;
-        }
-
         this.isGameOver = false;
         this.score = 0;
-        // this.scoreOffset = 0;
         this.lastScoreDistance = 0;
         this.maxSpeed = 1.0;
         this.collectedItems = { onigiri: 0, icecream: 0, star: 0 };
         this.speedMultiplier = 1.0;
         this.timeSinceLastSpeedIncrease = 0;
         this.totalPlayTime = 0;
-
         this.level = 1;
         this.particles = [];
         this.levelUpEffect.active = false;
+        this.testFinishDistance = null;
+
         this.stageManager.reset();
-        this.player = new Player(this.config, 100, LOGICAL_HEIGHT - 300);
+        this.player = new Player(this.config, this.assetManager, 100, LOGICAL_HEIGHT - 300);
 
-        // Hide rankings
-        const rankingsEl = document.getElementById('rankings-screen');
-        if (rankingsEl) rankingsEl.classList.add('hidden');
-
-        // Hide start screen
-        const startScreen = document.getElementById('start-screen');
-        if (startScreen) startScreen.style.display = 'none';
-
-        // Hide Game Over screen
-        const gameOverScreen = document.getElementById('game-over-screen');
-        if (gameOverScreen) gameOverScreen.classList.add('hidden');
-
-        // Show mobile controls
-        const mobileControls = document.getElementById('mobile-controls');
-        if (mobileControls) mobileControls.style.display = 'flex';
+        this.uiManager.hideRankingsScreen();
+        this.uiManager.hideStartScreen();
+        this.uiManager.hideGameOverScreen();
+        this.uiManager.showMobileControls();
 
         this.lastTime = performance.now();
 
-        // Check for Test Mode
+        // Safely parse test stage once on reset (defensive against corrupt localStorage)
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('mode') === 'test') {
-            console.log("Game Reset: Test Mode detected");
-            const testStageStr = localStorage.getItem('testStage');
-            const testSpeedStr = localStorage.getItem('testSpeed');
-            console.log("Game Reset: testStage from LS:", testStageStr ? "Found" : "Null");
+            try {
+                const testStageStr = localStorage.getItem('testStage');
+                const testSpeedStr = localStorage.getItem('testSpeed');
 
-            if (testStageStr) {
-                const testStage = JSON.parse(testStageStr);
-                console.log("Game Reset: Setting test stage", testStage);
-                this.stageManager.setTestStage(testStage);
+                if (testStageStr) {
+                    const testStage = JSON.parse(testStageStr);
+                    if (testStage && typeof testStage.width === 'number') {
+                        this.stageManager.setTestStage(testStage);
+                        this.testFinishDistance = 2400 + testStage.width;
+                    }
 
-
-                if (testSpeedStr) {
-                    this.speedMultiplier = parseFloat(testSpeedStr);
-                    this.config.speedIncreaseRate = 0;
+                    if (testSpeedStr) {
+                        const parsed = parseFloat(testSpeedStr);
+                        if (!isNaN(parsed) && parsed > 0) {
+                            this.speedMultiplier = parsed;
+                            this.config.speedIncreaseRate = 0;
+                        }
+                    }
                 }
-
-                // Show Test Mode UI
-                const scoreEl = document.createElement('div');
-                scoreEl.className = "absolute top-4 right-4 text-white font-bold text-2xl drop-shadow-md z-50";
-                scoreEl.innerText = `TEST MODE - SPEED: ${this.speedMultiplier.toFixed(1)}`;
-                document.body.appendChild(scoreEl);
+            } catch (e) {
+                console.warn("Failed to load test stage safely:", e);
             }
         }
 
-        // Randomize Background
-        const bgNum = Math.floor(Math.random() * 5) + 1; // 1 to 5
-        const bgPath = bgNum === 1 ? 'assets/background.png' : `assets/background${bgNum}.png`;
-        if (this.backgroundImage) {
-            this.backgroundImage.src = bgPath;
-        }
+        this.backgroundIndex = Math.floor(Math.random() * 5) + 1;
     }
 
-    private loop(timestamp: number) {
+    private loop(timestamp: number): void {
         if (this.isGameOver) return;
 
         let dt = timestamp - this.lastTime;
         this.lastTime = timestamp;
 
-        // Cap dt to prevent huge jumps (e.g. tab switching)
         if (dt > 50) dt = 50;
 
-        // Update
         this.update(dt);
-
-        // Draw
         this.draw();
 
         this.gameLoopId = requestAnimationFrame((t) => this.loop(t));
     }
 
-    private timeSinceLastSpeedIncrease: number = 0;
-    private totalPlayTime: number = 0;
-
-    private update(dt: number) {
+    private update(dt: number): void {
         this.totalPlayTime += dt;
 
-        // Calculate Level (1 to 8, increases every 35 seconds)
+        // Level calculation (Level 1 to 8, +1 every 35s)
         const newLevel = Math.min(8, Math.floor(this.totalPlayTime / 35000) + 1);
-
         if (newLevel > this.level) {
             this.level = newLevel;
-            // Trigger Level Up Effect
             this.levelUpEffect.active = true;
             this.levelUpEffect.timer = 3000;
             this.levelUpEffect.alpha = 1;
 
-            // Spawn Particles
             for (let i = 0; i < 30; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = 2 + Math.random() * 5;
@@ -523,36 +264,30 @@ export class Game {
                     vx: Math.cos(angle) * speed,
                     vy: Math.sin(angle) * speed,
                     life: 1000 + Math.random() * 1500,
-                    color: i % 2 === 0 ? '#fbbf24' : '#ffffff', // Yellow and White
+                    color: i % 2 === 0 ? '#fbbf24' : '#ffffff',
                     size: 4 + Math.random() * 6
                 });
             }
         }
 
-        // Calculate Interval (10s base, -1s per level)
-        // Level 1: 10s, Level 2: 9s, ..., Level 5: 6s
+        // Dynamic speed increase
         const speedIncreaseInterval = (10 - (this.level - 1)) * 1000;
-
-        // Increase speed based on dynamic interval
         this.timeSinceLastSpeedIncrease += dt;
         if (this.timeSinceLastSpeedIncrease > speedIncreaseInterval) {
             this.speedMultiplier += this.config.speedIncreaseRate;
             this.timeSinceLastSpeedIncrease = 0;
         }
 
-        // Update Level Up Effect
+        // Visual effects update
         if (this.levelUpEffect.active) {
             this.levelUpEffect.timer -= dt;
             if (this.levelUpEffect.timer <= 0) {
                 this.levelUpEffect.active = false;
             } else {
-                // Flash effect or pulse
-                // const progress = this.levelUpEffect.timer / 3000; // Unused
-                this.levelUpEffect.alpha = Math.abs(Math.sin(this.levelUpEffect.timer / 100)); // Flash 
+                this.levelUpEffect.alpha = Math.abs(Math.sin(this.levelUpEffect.timer / 100));
             }
         }
 
-        // Update Particles
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];
             p.x += p.vx * (dt / 16);
@@ -563,201 +298,164 @@ export class Game {
             }
         }
 
+        // World and player updates
         this.stageManager.update(dt, this.speedMultiplier, this.scrollSpeed);
         this.player.update(dt, this.speedMultiplier);
 
-        // Collision detection
-        const elements = this.stageManager.getElements();
-        const playerRect = this.player.getRect();
-
-        // Check for ground collision
-        let onGround = false;
-        for (const el of elements) {
-            if (el.type === 'platform') {
-                if (
-                    playerRect.x < el.x + el.width &&
-                    playerRect.x + playerRect.width > el.x &&
-                    playerRect.y + playerRect.height > el.y &&
-                    playerRect.y < el.y + el.height
-                ) {
-                    // Collision
-                    // Simple resolution: if falling and above, land
-                    // Increased tolerance to 20 to prevent falling through seams
-                    if (this.player.velocity.y >= 0 && playerRect.y + playerRect.height - (this.player.velocity.y * (dt / 16)) <= el.y + 20) {
-                        this.player.land(el.y);
-                        onGround = true;
-                    }
-                    // Side collision (death)
-                    // Only trigger if we are significantly below the top of the platform (not just skimming the edge)
-                    // Increased tolerance from 15 to 22 to fix "flat ground death" bug where small offsets caused death
-                    else if (playerRect.x + playerRect.width > el.x + 10 && playerRect.y + playerRect.height > el.y + 22) {
-                        // Check if it's a head collision (hitting bottom while jumping)
-                        // If moving up AND player top is close to platform bottom
-                        const isHeadCollision = this.player.velocity.y < 0 && playerRect.y > el.y + el.height - 30;
-
-                        if (isHeadCollision) {
-                            // Bonk! Stop upward movement and push out
-                            this.player.velocity.y = 0;
-                            this.player.position.y = el.y + el.height + this.player.size.height;
-                        } else {
-                            this.gameOver();
-                        }
-                    }
-                }
-            } else if (el.type === 'item') {
-                // Check collision with item
-                if (
-                    playerRect.x < el.x + el.width &&
-                    playerRect.x + playerRect.width > el.x &&
-                    playerRect.y + playerRect.height > el.y &&
-                    playerRect.y < el.y + el.height
-                ) {
-                    // Item collected
-                    if (el.subtype === 'onigiri' || el.subtype === 'icecream' || el.subtype === 'star') {
-                        this.collectedItems[el.subtype]++;
-                    }
-
-                    if (el.subtype === 'onigiri') {
-                        this.speedMultiplier = Math.max(0.5, this.speedMultiplier - 0.5);
-                    } else if (el.subtype === 'icecream') {
-                        this.score += 500;
-                    } else if (el.subtype === 'star') {
-                        this.player.addDoubleJump();
-                    }
-
-                    this.itemGetSound.currentTime = 0;
-                    this.itemGetSound.play().catch(() => { });
-
-                    // Remove item
-                    const index = this.stageManager.getElements().indexOf(el);
-                    if (index > -1) {
-                        this.stageManager.getElements().splice(index, 1);
-                    }
-                }
-            } else if (el.type === 'thorn') {
-                // Check collision with thorn
-                // Hitbox: 50% width, 50% height, bottom aligned
-                const hitWidth = el.width * 0.5;
-                const paddingX = (el.width - hitWidth) / 2;
-                const hitX = el.x + paddingX;
-
-                const hitHeight = el.height * 0.5;
-                const paddingY = el.height - hitHeight;
-                const hitY = el.y + paddingY;
-
-                if (
-                    playerRect.x < hitX + hitWidth &&
-                    playerRect.x + playerRect.width > hitX &&
-                    playerRect.y + playerRect.height > hitY &&
-                    playerRect.y < hitY + hitHeight
-                ) {
-                    this.gameOver();
-                }
+        // Gameplay context for collision resolution (Strategy pattern)
+        const context: GamePlayContext = {
+            addScore: (amount: number) => {
+                this.score += amount;
+            },
+            modifySpeed: (delta: number, minSpeed: number = 0.5) => {
+                this.speedMultiplier = Math.max(minSpeed, this.speedMultiplier + delta);
+            },
+            grantDoubleJump: () => {
+                this.player.addDoubleJump();
+            },
+            incrementCollectedItem: (type: 'onigiri' | 'icecream' | 'star') => {
+                this.collectedItems[type]++;
             }
+        };
+
+        const collisionResult = this.collisionSystem.checkAndResolve(
+            this.player,
+            this.stageManager.getElements(),
+            dt,
+            context
+        );
+
+        if (collisionResult.isGameOver) {
+            this.gameOver();
+            return;
         }
 
-        if (!onGround) {
-            this.player.setGrounded(false);
-        }
-
-        // Score update (Cumulative based on distance chunks)
-        const currentTotalDist = this.stageManager.getTotalDistance();
-        // Check how many 100px chunks we've passed since last update
-        while (currentTotalDist - this.lastScoreDistance >= 100) {
+        // Score accumulation by distance travelled
+        const currentDist = this.stageManager.getTotalDistance();
+        while (currentDist - this.lastScoreDistance >= 100) {
             this.lastScoreDistance += 100;
-
             this.score += 3 + (this.level * this.speedMultiplier * 2);
         }
 
-        // Apply any one-time offsets (legacy support for items if needed, though items add directly now?)
-        // Actually, we should just add scoreOffset directly to score when item is collected, 
-        // but since scoreOffset was a separate variable, we can just merge it.
-        // For now, let's keep score purely cumulative and add the offset at display/Game Over time or just merge it here.
-        // Easier: Modify item collection to add directly to this.score and remove scoreOffset usage?
-        // The original code: this.score = Math.floor(dist/100)*5 + this.scoreOffset;
-        // So offset was additive. We can just keep adding to this.score.
-
-        // Track Max Speed
         if (this.speedMultiplier > this.maxSpeed) {
             this.maxSpeed = this.speedMultiplier;
         }
 
-        // Check fall off
-        // Game Over when player is no longer visible (top of player matches or exceeds bottom of screen)
+        // Check falling off screen
         if (this.player.position.y - this.player.size.height > LOGICAL_HEIGHT) {
             this.gameOver();
+            return;
         }
 
-        // Check Test Clear Condition
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('mode') === 'test' && !this.isGameOver) {
-            // Check if player passed the stage
-            const testStageStr = localStorage.getItem('testStage');
-            if (testStageStr) {
-                const testStage = JSON.parse(testStageStr);
-                const finishDistance = 2400 + testStage.width;
-
-                if (this.stageManager.getTotalDistance() > finishDistance) {
-                    this.onTestClear();
-                }
+        // Check test mode clear condition (no JSON.parse per frame)
+        if (this.testFinishDistance !== null && !this.isGameOver) {
+            if (this.stageManager.getTotalDistance() > this.testFinishDistance) {
+                this.onTestClear();
             }
         }
     }
 
-    private onTestClear() {
+    private onTestClear(): void {
         this.isGameOver = true;
-        cancelAnimationFrame(this.gameLoopId!);
+        if (this.gameLoopId) cancelAnimationFrame(this.gameLoopId);
+        this.assetManager.stopBgm();
 
-        // Stop BGM
-        if (this.currentBgm) {
-            this.currentBgm.pause();
-            this.currentBgm = null;
+        let currentSpeed = 1.0;
+        try {
+            currentSpeed = parseFloat(localStorage.getItem('testSpeed') || '1.0');
+        } catch {
+            currentSpeed = 1.0;
         }
-
-        const currentSpeed = parseFloat(localStorage.getItem('testSpeed') || '1.0');
-        let nextSpeed = currentSpeed + 1.0;
+        const nextSpeed = currentSpeed + 1.0;
 
         if (nextSpeed > 3.0) {
-            // All cleared!
             alert("TEST CLEARED! You can now publish this stage.");
-            localStorage.setItem('testCompleted', 'true');
+            try {
+                localStorage.setItem('testCompleted', 'true');
+            } catch {
+                // Ignore storage errors
+            }
             window.location.href = '/stagemaker.html';
         } else {
             alert(`SPEED ${currentSpeed.toFixed(1)} CLEARED! Next: ${nextSpeed.toFixed(1)}`);
-            localStorage.setItem('testSpeed', nextSpeed.toFixed(1));
+            try {
+                localStorage.setItem('testSpeed', nextSpeed.toFixed(1));
+            } catch {
+                // Ignore storage errors
+            }
             window.location.reload();
         }
     }
 
-    private draw() {
-        // Clear screen with black (for letterboxing)
+    private draw(): void {
         this.ctx.fillStyle = 'black';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         this.ctx.save();
-
-        // Apply scaling and centering
         this.ctx.translate(this.offsetX, this.offsetY);
         this.ctx.scale(this.scale, this.scale);
 
-        // Clip to logical area to prevent drawing outside
         this.ctx.beginPath();
         this.ctx.rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
         this.ctx.clip();
 
-        // Draw Background
-        if (this.backgroundImage.complete) {
-            // Draw background to cover the logical area
-            this.ctx.drawImage(this.backgroundImage, 0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        // Draw background
+        const bgPath = this.backgroundIndex === 1
+            ? 'assets/background.png'
+            : `assets/background${this.backgroundIndex}.png`;
+        const bgImg = this.assetManager.getImage(bgPath);
+
+        if (bgImg.complete) {
+            this.ctx.drawImage(bgImg, 0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
         } else {
-            this.ctx.fillStyle = '#87CEEB'; // Sky blue fallback
+            this.ctx.fillStyle = '#87CEEB';
             this.ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
         }
 
+        // Draw stage and player
         this.stageManager.draw(this.ctx);
         this.player.draw(this.ctx);
 
         // Draw HUD
+        this.drawHUD();
+
+        // Draw particles
+        for (let i = 0; i < this.particles.length; i++) {
+            const p = this.particles[i];
+            this.ctx.fillStyle = p.color;
+            this.ctx.beginPath();
+            this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+
+        // Draw level up effect overlay
+        if (this.levelUpEffect.active) {
+            this.ctx.save();
+            this.ctx.globalAlpha = this.levelUpEffect.alpha;
+            this.ctx.textAlign = 'center';
+            this.ctx.lineWidth = 8;
+            this.ctx.lineJoin = 'round';
+
+            const startY = LOGICAL_HEIGHT / 2 - 20;
+            this.ctx.font = '900 60px "Comic Sans MS", sans-serif';
+            this.ctx.strokeStyle = 'black';
+            this.ctx.fillStyle = 'white';
+            const lvText = `LV.${this.level}`;
+            this.ctx.strokeText(lvText, LOGICAL_WIDTH / 2, startY);
+            this.ctx.fillText(lvText, LOGICAL_WIDTH / 2, startY);
+
+            this.ctx.fillStyle = '#fbbf24';
+            const spText = 'SPEED UP!!!';
+            this.ctx.strokeText(spText, LOGICAL_WIDTH / 2, startY + 70);
+            this.ctx.fillText(spText, LOGICAL_WIDTH / 2, startY + 70);
+
+            this.ctx.restore();
+        }
+
+        this.ctx.restore();
+    }
+
+    private drawHUD(): void {
         this.ctx.fillStyle = 'white';
         this.ctx.font = 'bold 30px "Comic Sans MS", "Chalkboard SE", sans-serif';
         this.ctx.strokeStyle = 'black';
@@ -769,76 +467,34 @@ export class Game {
         this.ctx.strokeText(scoreText, 20, 50);
         this.ctx.fillText(scoreText, 20, 50);
 
-        // Speed & Level (Below Score)
+        // Speed & Level
         const statsText = `Speed: ${this.speedMultiplier.toFixed(2)}x   Lv.${this.level}`;
         this.ctx.font = 'bold 24px "Comic Sans MS", "Chalkboard SE", sans-serif';
         this.ctx.strokeText(statsText, 20, 85);
         this.ctx.fillText(statsText, 20, 85);
 
-        // Double Jump Count
+        // Double jump count
         if (this.player.doubleJumpCount > 0) {
-            this.ctx.fillStyle = '#f6e05e'; // Yellow-400
+            this.ctx.fillStyle = '#f6e05e';
             this.ctx.font = 'bold 24px "Comic Sans MS", sans-serif';
-            this.ctx.strokeText(`Double Jumps: ${this.player.doubleJumpCount}`, 20, 115);
-            this.ctx.fillText(`Double Jumps: ${this.player.doubleJumpCount}`, 20, 115);
+            const jumpText = `Double Jumps: ${this.player.doubleJumpCount}`;
+            this.ctx.strokeText(jumpText, 20, 115);
+            this.ctx.fillText(jumpText, 20, 115);
         }
-
-        // Particles
-        for (const p of this.particles) {
-            this.ctx.fillStyle = p.color;
-            this.ctx.beginPath();
-            this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            this.ctx.fill();
-        }
-
-        // Level Up Overlay
-        if (this.levelUpEffect.active) {
-            this.ctx.save();
-            this.ctx.globalAlpha = this.levelUpEffect.alpha;
-            this.ctx.textAlign = 'center';
-            this.ctx.lineWidth = 8;
-            this.ctx.lineJoin = 'round';
-
-            const startY = LOGICAL_HEIGHT / 2 - 20;
-
-            // Level Text
-            this.ctx.font = '900 60px "Comic Sans MS", sans-serif';
-            this.ctx.strokeStyle = 'black';
-            this.ctx.fillStyle = 'white';
-            const lvText = `LV.${this.level}`;
-            this.ctx.strokeText(lvText, LOGICAL_WIDTH / 2, startY);
-            this.ctx.fillText(lvText, LOGICAL_WIDTH / 2, startY);
-
-            // Speed Up Text
-            this.ctx.fillStyle = '#fbbf24'; // Yellow
-            const spText = 'SPEED UP!!!';
-            this.ctx.strokeText(spText, LOGICAL_WIDTH / 2, startY + 70);
-            this.ctx.fillText(spText, LOGICAL_WIDTH / 2, startY + 70);
-
-            this.ctx.restore();
-        }
-
-        this.ctx.restore();
     }
 
-    private gameOver() {
+    private gameOver(): void {
         this.isGameOver = true;
         this.canReturnToTitle = false;
 
         if (this.gameLoopId) {
             cancelAnimationFrame(this.gameLoopId);
+            this.gameLoopId = null;
         }
 
-        // Stop BGM
-        if (this.currentBgm) {
-            this.currentBgm.pause();
-            this.currentBgm = null;
-        }
+        this.assetManager.stopBgm();
+        this.assetManager.playSfx('assets/sound/gameover.wav');
 
-        this.gameOverSound.currentTime = 0;
-        this.gameOverSound.play().catch(() => { });
-
-        // Check Test Mode Failure
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('mode') === 'test') {
             alert("TEST FAILED! Returning to editor...");
@@ -846,113 +502,36 @@ export class Game {
             return;
         }
 
-        // Hide mobile controls
-        const mobileControls = document.getElementById('mobile-controls');
-        if (mobileControls) mobileControls.style.display = 'none';
+        this.uiManager.hideMobileControls();
 
-        // Prepare Score Screen
-        const gameOverScreen = document.getElementById('game-over-screen');
-        const finalScoreEl = document.getElementById('final-score');
-        const returnBtn = document.getElementById('return-title-btn');
-
-        if (gameOverScreen && finalScoreEl) {
-            // Calculate Scores
-            const baseScore = Math.floor(this.score);
-            const stars = this.player.doubleJumpCount;
-            const starBonus = stars * 200;
-            const finalScore = baseScore + starBonus;
-
-            // Random Message
-            const randomMsg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
-            const msgEl = document.getElementById('game-over-message');
-            if (msgEl) msgEl.innerText = randomMsg;
-
-            // DOM Updates
-            finalScoreEl.innerText = finalScore.toString();
-
-            const baseScoreEl = document.getElementById('base-score');
-            if (baseScoreEl) baseScoreEl.innerText = baseScore.toString();
-
-            const levelEl = document.getElementById('result-level');
-            if (levelEl) levelEl.innerText = this.level.toString();
-
-            const maxSpeedEl = document.getElementById('result-max-speed');
-            if (maxSpeedEl) maxSpeedEl.innerText = this.maxSpeed.toFixed(2) + 'x';
-
-            // Detailed Items
-            const onigiriEl = document.getElementById('count-onigiri');
-            if (onigiriEl) onigiriEl.innerText = this.collectedItems.onigiri.toString();
-
-            const icecreamEl = document.getElementById('count-icecream');
-            if (icecreamEl) icecreamEl.innerText = this.collectedItems.icecream.toString();
-
-            const starEl = document.getElementById('count-star');
-            if (starEl) starEl.innerText = this.collectedItems.star.toString();
-
-            const starCountEl = document.getElementById('star-count');
-            if (starCountEl) starCountEl.innerText = stars.toString();
-
-            const starBonusEl = document.getElementById('star-bonus');
-            if (starBonusEl) starBonusEl.innerText = '+' + starBonus.toString();
-
-            gameOverScreen.classList.remove('hidden');
-
-            // Hide return button initially
-            if (returnBtn) returnBtn.classList.add('hidden');
-
-            // Override this.score with final score so rankings use it or submission uses it
-            // Actually, best to keep this.score as base and just submit final
-            this.submitScore(finalScore);
-        }
-
-        // 3 Seconds Delay before showing Title button
-        setTimeout(() => {
-            if (this.isGameOver) {
-                this.canReturnToTitle = true;
-                if (returnBtn) {
-                    returnBtn.classList.remove('hidden');
-                    returnBtn.classList.add('animate-bounce'); // Add visual cue
+        const baseScore = Math.floor(this.score);
+        const finalScore = this.uiManager.showGameOverScreen(
+            baseScore,
+            this.level,
+            this.maxSpeed,
+            this.player.doubleJumpCount,
+            this.collectedItems,
+            () => {
+                if (this.isGameOver) {
+                    this.canReturnToTitle = true;
                 }
             }
-        }, 3000);
+        );
+
+        const playerName = this.inputManager.getPlayerName();
+        this.uiManager.submitScore({
+            name: playerName,
+            score: finalScore,
+            level: this.level,
+            max_speed: this.maxSpeed,
+            items: this.collectedItems
+        });
     }
 
-    private submitScore(score: number) {
-        // Get player name from input (entered at start)
-        const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
-        const playerName = nameInput?.value || "Player";
-
-        fetch(`${API_BASE_URL}/scores`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
-            },
-            body: JSON.stringify({
-                score: score,
-                name: playerName,
-                max_speed: this.maxSpeed,
-                level: this.level,
-                items: this.collectedItems
-            })
-        }).catch(err => console.error("Failed to submit score:", err));
-    }
-
-    private returnToTitle() {
+    private returnToTitle(): void {
+        this.assetManager.stopBgm();
         this.reset();
-
-        // Show start screen (Must be after reset() as reset() hides it)
-        const startScreen = document.getElementById('start-screen');
-        if (startScreen) startScreen.style.display = 'flex'; // Restore flex display
-
-        // Also ensure Rankings are hidden (reset does this)
-
-        // Ensure Title Button is reset/hidden
-        const returnBtn = document.getElementById('return-title-btn');
-        if (returnBtn) {
-            returnBtn.classList.add('hidden');
-            returnBtn.classList.remove('animate-bounce');
-        }
+        this.uiManager.showStartScreen();
 
         if (this.gameLoopId) {
             cancelAnimationFrame(this.gameLoopId);
@@ -960,69 +539,7 @@ export class Game {
         }
     }
 
-    public async showRankings(isGameOver: boolean = false, score?: number) {
-        const rankingsEl = document.getElementById('rankings-screen');
-        const rankingsList = document.getElementById('rankings-list');
-
-        if (rankingsEl && rankingsList) {
-            rankingsList.innerHTML = '<div class="text-4xl font-black text-white animate-pulse">LOADING...</div>';
-            rankingsEl.classList.remove('hidden');
-
-            // Add Game Over title if applicable
-            if (isGameOver) {
-                const title = document.createElement('h2');
-                title.className = "text-6xl font-black text-red-500 mb-4 drop-shadow-[4px_4px_0_#000] transform -rotate-3";
-                title.innerText = "GAME OVER";
-                rankingsList.innerHTML = '';
-                rankingsList.appendChild(title);
-
-                const scoreDisplay = document.createElement('div');
-                scoreDisplay.className = "text-4xl font-bold text-white mb-8 drop-shadow-[2px_2px_0_#000]";
-                scoreDisplay.innerText = `SCORE: ${score !== undefined ? score : Math.floor(this.score)}`;
-                rankingsList.appendChild(scoreDisplay);
-            } else {
-                rankingsList.innerHTML = '<h2 class="text-6xl font-black text-yellow-400 mb-8 drop-shadow-[4px_4px_0_#000] transform -rotate-3">RANKING</h2>';
-            }
-
-            try {
-                const res = await fetch(`${API_BASE_URL}/scores`, {
-                    headers: { 'ngrok-skip-browser-warning': 'true' }
-                });
-                const scores = await res.json();
-
-                const listContainer = document.createElement('div');
-                listContainer.className = "w-full max-w-2xl bg-white/90 border-4 border-black rounded-xl p-6 shadow-[8px_8px_0_#000] transform rotate-1";
-
-                listContainer.innerHTML = scores.map((s: any, i: number) => `
-                    <div class="flex justify-between items-center mb-4 border-b-2 border-dashed border-gray-400 pb-2 last:border-0">
-                        <div class="flex items-center gap-4">
-                            <span class="text-3xl font-black ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-500' : i === 2 ? 'text-orange-600' : 'text-black'} drop-shadow-sm">#${i + 1}</span> 
-                            <div class="flex flex-col text-left">
-                                <span class="text-2xl font-bold text-gray-800 truncate max-w-[200px]">${s.name}</span>
-                                <span class="text-xs font-bold text-gray-500">Lv.${s.level || 1} | Max Speed: ${(s.max_speed || 1.0).toFixed(2)}</span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col items-end">
-                            <span class="text-3xl font-black text-pink-500 drop-shadow-sm">${s.score}</span>
-                            <div class="flex gap-1 text-xs text-gray-600">
-                                <span>🍙${s.items?.onigiri || 0}</span>
-                                <span>🍦${s.items?.icecream || 0}</span>
-                                <span>⭐${s.items?.star || 0}</span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-
-                rankingsList.appendChild(listContainer);
-
-            } catch (err) {
-                rankingsList.innerHTML += '<div class="text-2xl text-red-500 font-bold mt-4">Failed to load rankings.</div>';
-            }
-        }
-    }
-
-    // Helper to restore rankings view if closed
-    public displayRankings() {
-        this.showRankings();
+    public async showRankings(): Promise<void> {
+        await this.uiManager.showRankings(this.isGameOver, Math.floor(this.score));
     }
 }
