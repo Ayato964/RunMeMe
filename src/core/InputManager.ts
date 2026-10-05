@@ -4,6 +4,9 @@ export interface InputCallbacks {
     onReturnToTitle: () => void;
     onShowRankings: () => void;
     onCloseRankings: () => void;
+    onLinkAccount?: () => void;
+    onGuestLogin?: () => void;
+    onLogout?: () => void;
 }
 
 export class InputManager {
@@ -12,19 +15,22 @@ export class InputManager {
     private isGameOverState: () => boolean;
     private canReturnToTitleState: () => boolean;
     private isStartScreenActive: () => boolean;
+    private isAuthGateActive?: () => boolean;
 
     constructor(
         canvas: HTMLCanvasElement,
         callbacks: InputCallbacks,
         isGameOverState: () => boolean,
         canReturnToTitleState: () => boolean,
-        isStartScreenActive: () => boolean
+        isStartScreenActive: () => boolean,
+        isAuthGateActive?: () => boolean
     ) {
         this.canvas = canvas;
         this.callbacks = callbacks;
         this.isGameOverState = isGameOverState;
         this.canReturnToTitleState = canReturnToTitleState;
         this.isStartScreenActive = isStartScreenActive;
+        this.isAuthGateActive = isAuthGateActive;
 
         this.setupKeyboard();
         this.setupTouch();
@@ -46,6 +52,11 @@ export class InputManager {
                         this.callbacks.onReturnToTitle();
                     }
                 } else if (this.isStartScreenActive()) {
+                    // Do not auto-start game if auth gate is still active
+                    if (this.isAuthGateActive && this.isAuthGateActive()) {
+                        return;
+                    }
+
                     const name = this.getPlayerName();
                     if (name === '[STAGEMAKER]') {
                         window.location.href = '/stagemaker.html';
@@ -60,33 +71,21 @@ export class InputManager {
     }
 
     private setupTouch(): void {
-        this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            if (this.isGameOverState()) {
-                if (this.canReturnToTitleState()) {
-                    this.callbacks.onReturnToTitle();
-                }
-            } else if (!this.isStartScreenActive()) {
-                this.callbacks.onJump();
-            }
-        }, { passive: false });
-
         const jumpBtn = document.getElementById('mobile-jump-btn');
         if (jumpBtn) {
             jumpBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                if (!this.isGameOverState()) {
-                    this.callbacks.onJump();
-                }
+                this.callbacks.onJump();
             }, { passive: false });
-
-            jumpBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (!this.isGameOverState()) {
-                    this.callbacks.onJump();
-                }
-            });
         }
+
+        // Tap on canvas for mobile jump during gameplay
+        this.canvas.addEventListener('touchstart', (e) => {
+            if (!this.isGameOverState() && !this.isStartScreenActive()) {
+                e.preventDefault();
+                this.callbacks.onJump();
+            }
+        }, { passive: false });
     }
 
     private setupButtons(): void {
@@ -105,6 +104,18 @@ export class InputManager {
         startBtn?.addEventListener('click', handleStart);
         nameInput?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') handleStart();
+        });
+
+        document.getElementById('link-account-btn')?.addEventListener('click', () => {
+            this.callbacks.onLinkAccount?.();
+        });
+
+        document.getElementById('guest-login-btn')?.addEventListener('click', () => {
+            this.callbacks.onGuestLogin?.();
+        });
+
+        document.getElementById('logout-btn')?.addEventListener('click', () => {
+            this.callbacks.onLogout?.();
         });
 
         document.getElementById('rankings-btn-start')?.addEventListener('click', () => {

@@ -1,21 +1,18 @@
 import MESSAGES from '../game_over_messages.json';
-import { API_BASE_URL } from '../config';
-
-export interface ScoreData {
-    name: string;
-    score: number;
-    level: number;
-    max_speed: number;
-    items?: {
-        onigiri?: number;
-        icecream?: number;
-        star?: number;
-    };
-}
+import type { AuthUser } from '../domain/auth/IAuthService';
+import type { IScoreRepository, ScoreEntry } from '../domain/score/IScoreRepository';
 
 export class UIManager {
     private loadingInterval: number | null = null;
-    private static readonly LOCAL_SCORES_KEY = 'runmeme_local_scores';
+    private scoreRepository?: IScoreRepository;
+
+    constructor(scoreRepository?: IScoreRepository) {
+        this.scoreRepository = scoreRepository;
+    }
+
+    public setScoreRepository(scoreRepository: IScoreRepository): void {
+        this.scoreRepository = scoreRepository;
+    }
 
     public showLoading(): void {
         const loadingScreen = document.getElementById('loading-screen');
@@ -74,6 +71,73 @@ export class UIManager {
     public isStartScreenVisible(): boolean {
         const startScreen = document.getElementById('start-screen');
         return !!startScreen && startScreen.style.display !== 'none';
+    }
+
+    /**
+     * Shows the initial auth gate ("アカウントを連携する" / "ゲストとしてログイン")
+     */
+    public showAuthGate(): void {
+        const authGate = document.getElementById('auth-gate-container');
+        const startControls = document.getElementById('start-controls-container');
+        if (authGate) authGate.classList.remove('hidden');
+        if (startControls) startControls.classList.add('hidden');
+    }
+
+    /**
+     * Shows the actual game controls ("START GAME" / "RANKING") once logged in or guest
+     */
+    public showStartControls(): void {
+        const authGate = document.getElementById('auth-gate-container');
+        const startControls = document.getElementById('start-controls-container');
+        if (authGate) authGate.classList.add('hidden');
+        if (startControls) startControls.classList.remove('hidden');
+    }
+
+    /**
+     * Displays user badge on title screen when logged in / guest
+     */
+    public renderUserBadge(user: AuthUser | null): void {
+        const badgeEl = document.getElementById('user-badge');
+        const nameEl = document.getElementById('user-display-name');
+        const discordIdEl = document.getElementById('user-discord-id');
+        const avatarEl = document.getElementById('user-avatar') as HTMLImageElement;
+        const ambassadorTag = document.getElementById('ambassador-tag');
+        const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
+
+        if (!badgeEl) return;
+
+        if (!user) {
+            badgeEl.classList.add('hidden');
+            return;
+        }
+
+        badgeEl.classList.remove('hidden');
+
+        const displayName = user.nickname || user.name || (user.is_guest ? 'Guest Player' : user.discord_user_id);
+        if (nameEl) nameEl.innerText = displayName;
+
+        if (discordIdEl) {
+            discordIdEl.innerText = user.is_guest ? 'ゲストモード' : `@${user.discord_user_id}`;
+        }
+
+        if (avatarEl) {
+            avatarEl.src = this.getSafeAvatarUrl(user.photo_url);
+            avatarEl.onerror = () => {
+                avatarEl.src = 'assets/chara_stop.png';
+            };
+        }
+
+        if (ambassadorTag) {
+            if (user.is_ambassador) {
+                ambassadorTag.classList.remove('hidden');
+            } else {
+                ambassadorTag.classList.add('hidden');
+            }
+        }
+
+        if (nameInput) {
+            nameInput.value = displayName.substring(0, 15);
+        }
     }
 
     public showMobileControls(): void {
@@ -182,44 +246,24 @@ export class UIManager {
             rankingsList.innerHTML = '<h2 class="text-6xl font-black text-yellow-400 mb-8 drop-shadow-[4px_4px_0_#000] transform -rotate-3">RANKING</h2>';
         }
 
-        let scores: ScoreData[] = [];
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-            const res = await fetch(`${API_BASE_URL}/scores`, {
-                headers: { 'ngrok-skip-browser-warning': 'true' },
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data)) {
-                    scores = data;
-                } else {
-                    scores = this.getLocalScores();
-                }
-            } else {
-                scores = this.getLocalScores();
-            }
-        } catch {
-            scores = this.getLocalScores();
+        let scores: ScoreEntry[] = [];
+        if (this.scoreRepository) {
+            scores = await this.scoreRepository.getScores();
         }
 
         const listContainer = document.createElement('div');
         listContainer.className = "w-full max-w-2xl bg-white/90 border-4 border-black rounded-xl p-6 shadow-[8px_8px_0_#000] transform rotate-1";
 
         if (scores.length === 0) {
-            listContainer.innerHTML = '<div class="text-xl font-bold text-gray-700 py-4">No scores recorded yet!</div>';
+            listContainer.innerHTML = '<div class="text-xl font-bold text-gray-700 py-4">まだスコアが記録されていません！</div>';
         } else {
             listContainer.innerHTML = scores.map((s, i) => `
                 <div class="flex justify-between items-center mb-4 border-b-2 border-dashed border-gray-400 pb-2 last:border-0">
                     <div class="flex items-center gap-4">
                         <span class="text-3xl font-black ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-500' : i === 2 ? 'text-orange-600' : 'text-black'} drop-shadow-sm">#${i + 1}</span> 
                         <div class="flex flex-col text-left">
-                            <span class="text-2xl font-bold text-gray-800 truncate max-w-[200px]">${s.name}</span>
-                            <span class="text-xs font-bold text-gray-500">Lv.${s.level || 1} | Max Speed: ${(s.max_speed || 1.0).toFixed(2)}</span>
+                            <span class="text-2xl font-bold text-gray-800 truncate max-w-[200px]">${this.escapeHtml(s.name)}</span>
+                            <span class="text-xs font-bold text-gray-500">Lv.${s.level || 1} | Max Speed: ${(s.max_speed || 1.0).toFixed(2)}x</span>
                         </div>
                     </div>
                     <div class="flex flex-col items-end">
@@ -242,44 +286,30 @@ export class UIManager {
         if (rankingsEl) rankingsEl.classList.add('hidden');
     }
 
-    public submitScore(scoreData: ScoreData): void {
-        // Save locally first (offline resilience)
-        this.saveLocalScore(scoreData);
-
-        // Try remote submission asynchronously
-        fetch(`${API_BASE_URL}/scores`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
-            },
-            body: JSON.stringify(scoreData)
-        }).catch(() => {
-            // Silently handled in offline mode
-        });
+    private escapeHtml(text: string): string {
+        if (!text) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 
-    private getLocalScores(): ScoreData[] {
+    private getSafeAvatarUrl(url: string | null | undefined): string {
+        if (!url || typeof url !== 'string') return 'assets/chara_stop.png';
+        const trimmed = url.trim();
+        if (trimmed.startsWith('assets/') || trimmed.startsWith('/assets/')) {
+            return trimmed;
+        }
         try {
-            const raw = localStorage.getItem(UIManager.LOCAL_SCORES_KEY);
-            if (!raw) return [];
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) return [];
-            return parsed.filter(item => item && typeof item === 'object' && typeof item.score === 'number');
+            const parsed = new URL(trimmed, window.location.href);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                return parsed.href;
+            }
         } catch {
-            return [];
+            // Ignore parse errors
         }
-    }
-
-    private saveLocalScore(score: ScoreData): void {
-        try {
-            const list = this.getLocalScores();
-            list.push(score);
-            list.sort((a, b) => b.score - a.score);
-            const topScores = list.slice(0, 100);
-            localStorage.setItem(UIManager.LOCAL_SCORES_KEY, JSON.stringify(topScores));
-        } catch (e) {
-            console.warn("Failed to persist local score:", e);
-        }
+        return 'assets/chara_stop.png';
     }
 }

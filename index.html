@@ -21,30 +21,67 @@
 
       <!-- Start Screen -->
       <div id="start-screen"
-        class="absolute inset-0 flex flex-col items-center justify-end pb-20 bg-cover bg-center bg-no-repeat pointer-events-auto z-50"
+        class="absolute inset-0 flex flex-col items-center justify-end pb-12 bg-cover bg-center bg-no-repeat pointer-events-auto z-50"
         style="background-image: url('/assets/title.png');">
-        <div class="text-center">
-          <!-- Title is now background, so we just have controls at bottom -->
+        
+        <!-- User Status Badge (shown when authenticated) -->
+        <div id="user-badge" class="hidden absolute top-6 right-6 flex items-center gap-3 bg-white/90 border-4 border-black rounded-2xl px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transform rotate-1">
+          <img id="user-avatar" src="assets/chara_stop.png" alt="Avatar" class="w-10 h-10 rounded-full border-2 border-black object-cover" />
+          <div class="flex flex-col text-left">
+            <div class="flex items-center gap-1.5">
+              <span id="user-display-name" class="font-black text-black text-sm tracking-wide">Player</span>
+              <span id="ambassador-tag" class="hidden px-1.5 py-0.5 bg-yellow-400 border border-black rounded text-[10px] font-black text-black">✦ AMBASSADOR</span>
+            </div>
+            <span id="user-discord-id" class="text-xs font-bold text-gray-500 font-mono">@guest</span>
+          </div>
+          <button id="logout-btn" title="ログアウト / アカウント切り替え" class="ml-2 px-2 py-1 bg-gray-200 hover:bg-red-400 hover:text-white border-2 border-black rounded-lg text-xs font-black text-black transition-colors">
+            LOGOUT
+          </button>
+        </div>
 
-          <div class="mb-6 transform -skew-x-12">
-            <input type="text" id="player-name-input" placeholder="ENTER NAME"
-              class="px-6 py-3 rounded-xl border-4 border-black bg-white text-black font-black text-2xl text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:outline-none uppercase tracking-wider"
-              value="Player" maxlength="15">
+        <div class="text-center w-full max-w-xl px-4">
+          <!-- Auth Gate Screen (shown before game start / ranking) -->
+          <div id="auth-gate-container" class="mb-4 bg-white/95 border-4 border-black rounded-3xl p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transform -rotate-1">
+            <h2 class="text-3xl font-black text-black tracking-wider mb-2 drop-shadow-[2px_2px_0_#fde047]">RUN ME ME LOGIN</h2>
+            <p class="text-sm font-bold text-gray-600 mb-6">Moffy アカウントと連携してクラウドに記録を保存しよう！</p>
+            
+            <div class="flex flex-col gap-4 items-center">
+              <button id="link-account-btn"
+                class="w-full max-w-md transform hover:scale-105 transition-transform duration-200 py-4 px-6 bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 border-4 border-black rounded-2xl text-xl font-black text-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 -skew-x-3 cursor-pointer">
+                <span class="text-yellow-300 text-2xl">✦</span>
+                <span>アカウントを連携する</span>
+              </button>
+              
+              <button id="guest-login-btn"
+                class="w-full max-w-md transform hover:scale-105 transition-transform duration-200 py-3 px-6 bg-yellow-400 hover:bg-yellow-300 border-4 border-black rounded-2xl text-base font-black text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] skew-x-3 cursor-pointer">
+                ゲストとしてログイン
+              </button>
+            </div>
           </div>
 
-          <div class="flex gap-6 justify-center items-center">
-            <button id="start-btn"
-              class="transform hover:scale-110 transition-transform duration-200 px-10 py-4 bg-yellow-400 border-4 border-black rounded-xl text-2xl font-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] -skew-x-6">
-              START GAME
-            </button>
-            <button id="rankings-btn-start"
-              class="transform hover:scale-110 transition-transform duration-200 px-8 py-4 bg-pink-400 border-4 border-black rounded-xl text-2xl font-black text-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] skew-x-6">
-              RANKING
-            </button>
+          <!-- Original Game Start Controls (hidden until auth or guest login) -->
+          <div id="start-controls-container" class="hidden">
+            <div class="mb-6 transform -skew-x-12">
+              <input type="text" id="player-name-input" placeholder="ENTER NAME"
+                class="px-6 py-3 rounded-xl border-4 border-black bg-white text-black font-black text-2xl text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:outline-none uppercase tracking-wider"
+                value="Player" maxlength="15">
+            </div>
+
+            <div class="flex gap-6 justify-center items-center">
+              <button id="start-btn"
+                class="transform hover:scale-110 transition-transform duration-200 px-10 py-4 bg-yellow-400 border-4 border-black rounded-xl text-2xl font-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] -skew-x-6 cursor-pointer">
+                START GAME
+              </button>
+              <button id="rankings-btn-start"
+                class="transform hover:scale-110 transition-transform duration-200 px-8 py-4 bg-pink-400 border-4 border-black rounded-xl text-2xl font-black text-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] skew-x-6 cursor-pointer">
+                RANKING
+              </button>
+            </div>
+            <p class="mt-8 text-xl text-white font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-pulse">PRESS SPACE
+              TO JUMP</p>
           </div>
-          <p class="mt-8 text-xl text-white font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-pulse">PRESS SPACE
-            TO JUMP</p>
-          <div class="absolute bottom-4 right-4 text-white/50 font-mono text-sm">Ver 1.18.5</div>
+          
+          <div class="absolute bottom-4 right-4 text-white/50 font-mono text-sm">Ver 2.0.0</div>
         </div>
       </div>
 

@@ -10,6 +10,10 @@ import { HybridStageRepository } from './stages/HybridStageRepository';
 import type { IStageRepository } from './stages/IStageRepository';
 import { UIManager } from './ui/UIManager';
 import type { GamePlayContext } from './domain/items/ItemStrategy';
+import type { IAuthService } from './domain/auth/IAuthService';
+import { MoffyAuthService } from './domain/auth/MoffyAuthService';
+import type { IScoreRepository } from './domain/score/IScoreRepository';
+import { HybridScoreRepository as GameScoreRepository } from './domain/score/HybridScoreRepository';
 
 interface Particle {
     x: number;
@@ -33,6 +37,8 @@ export class Game {
     private collisionSystem: CollisionSystem;
     private itemRegistry: ItemRegistry;
     private uiManager: UIManager;
+    private authService: IAuthService;
+    private scoreRepository: IScoreRepository;
     private inputManager!: InputManager;
 
     // Game Loop & Timing
@@ -90,13 +96,18 @@ export class Game {
         this.player = new Player(this.config, this.assetManager, 100, LOGICAL_HEIGHT - 300);
         this.itemRegistry = new ItemRegistry();
         this.collisionSystem = new CollisionSystem(this.itemRegistry, this.assetManager);
-        this.uiManager = new UIManager();
+        this.authService = new MoffyAuthService();
+        this.scoreRepository = new GameScoreRepository();
+        this.uiManager = new UIManager(this.scoreRepository);
 
         this.initGame();
     }
 
     private async initGame(): Promise<void> {
         this.uiManager.showLoading();
+
+        // Handle OAuth callback if returning from IdentityLoginSystem with token fragment
+        this.authService.handleCallback();
 
         this.setupInputs();
         this.resize();
@@ -105,6 +116,15 @@ export class Game {
         // Preload assets asynchronously
         await this.assetManager.preloadAll();
         this.uiManager.hideLoading();
+
+        // Check authentication state
+        if (this.authService.isAuthenticated()) {
+            this.uiManager.renderUserBadge(this.authService.getCurrentUser());
+            this.uiManager.showStartControls();
+        } else {
+            this.uiManager.renderUserBadge(null);
+            this.uiManager.showAuthGate();
+        }
 
         // Check for test mode
         const urlParams = new URLSearchParams(window.location.search);
@@ -140,11 +160,25 @@ export class Game {
                 },
                 onCloseRankings: () => {
                     this.uiManager.hideRankingsScreen();
+                },
+                onLinkAccount: () => {
+                    this.authService.login();
+                },
+                onGuestLogin: () => {
+                    this.authService.loginAsGuest();
+                    this.uiManager.renderUserBadge(this.authService.getCurrentUser());
+                    this.uiManager.showStartControls();
+                },
+                onLogout: () => {
+                    this.authService.logout();
+                    this.uiManager.renderUserBadge(null);
+                    this.uiManager.showAuthGate();
                 }
             },
             () => this.isGameOver,
             () => this.canReturnToTitle,
-            () => this.uiManager.isStartScreenVisible()
+            () => this.uiManager.isStartScreenVisible(),
+            () => !this.authService.isAuthenticated()
         );
     }
 
@@ -518,20 +552,34 @@ export class Game {
             }
         );
 
-        const playerName = this.inputManager.getPlayerName();
-        this.uiManager.submitScore({
-            name: playerName,
-            score: finalScore,
+        const currentUser = this.authService.getCurrentUser();
+        const playerName = this.inputManager.getPlayerName() || currentUser?.nickname || currentUser?.name || 'PLAYER';
+        const discordUserId = (!currentUser || currentUser.is_guest) ? undefined : currentUser.discord_user_id;
+
+        this.scoreRepository.saveProgress({
+            high_score: finalScore,
+            last_score: finalScore,
             level: this.level,
             max_speed: this.maxSpeed,
-            items: this.collectedItems
-        });
+            items: { ...this.collectedItems },
+            total_games_played: 1,
+            user_name: playerName,
+            updated_at: new Date().toISOString()
+        }, discordUserId);
     }
 
     private returnToTitle(): void {
         this.assetManager.stopBgm();
         this.reset();
         this.uiManager.showStartScreen();
+
+        if (this.authService.isAuthenticated()) {
+            this.uiManager.renderUserBadge(this.authService.getCurrentUser());
+            this.uiManager.showStartControls();
+        } else {
+            this.uiManager.renderUserBadge(null);
+            this.uiManager.showAuthGate();
+        }
 
         if (this.gameLoopId) {
             cancelAnimationFrame(this.gameLoopId);
