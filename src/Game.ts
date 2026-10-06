@@ -119,8 +119,16 @@ export class Game {
 
         // Check authentication state
         if (this.authService.isAuthenticated()) {
-            this.uiManager.renderUserBadge(this.authService.getCurrentUser());
+            const currentUser = this.authService.getCurrentUser();
+            this.uiManager.renderUserBadge(currentUser);
             this.uiManager.showStartControls();
+
+            // Synchronize cloud progress in the background to ensure newest personal bests on this device
+            if (currentUser && !currentUser.is_guest) {
+                this.scoreRepository.getProgress(currentUser.discord_user_id).catch((err) => {
+                    console.warn('[Game] Initial cloud sync deferred:', err);
+                });
+            }
         } else {
             this.uiManager.renderUserBadge(null);
             this.uiManager.showAuthGate();

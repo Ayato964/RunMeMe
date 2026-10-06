@@ -82,16 +82,45 @@ export class HybridScoreRepository implements IScoreRepository {
         try {
             const cloudProgress = await this.moffyRepo.getProgress(discordUserId);
             if (cloudProgress) {
-                // Merge if cloud has higher score or richer best_scores
-                const localBestCount = localProgress?.best_scores?.length || 0;
-                const cloudBestCount = cloudProgress?.best_scores?.length || 0;
-                if (!localProgress || cloudProgress.high_score > localProgress.high_score || cloudBestCount > localBestCount) {
-                    await this.localRepo.saveProgress(cloudProgress, discordUserId);
-                    return cloudProgress;
+                // Reconcile best_scores between local and cloud
+                const localBest: DetailedScoreRecord[] = (localProgress?.best_scores && Array.isArray(localProgress.best_scores))
+                    ? localProgress.best_scores
+                    : [];
+                const cloudBest: DetailedScoreRecord[] = (cloudProgress?.best_scores && Array.isArray(cloudProgress.best_scores))
+                    ? cloudProgress.best_scores
+                    : [];
+
+                const combined = [...localBest];
+                for (const cb of cloudBest) {
+                    const exists = combined.some(lb => lb.score === cb.score && lb.recorded_at === cb.recorded_at);
+                    if (!exists) {
+                        combined.push(cb);
+                    }
                 }
+                combined.sort((a, b) => {
+                    if (b.score !== a.score) return b.score - a.score;
+                    return new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime();
+                });
+                const mergedBest = combined.slice(0, 3);
+                const highestScore = Math.max(
+                    localProgress?.high_score || 0,
+                    cloudProgress.high_score || 0,
+                    mergedBest[0]?.score || 0
+                );
+
+                const mergedProgress: GameProgress = {
+                    ...cloudProgress,
+                    ...localProgress,
+                    high_score: highestScore,
+                    best_scores: mergedBest,
+                    updated_at: new Date().toISOString()
+                };
+
+                await this.localRepo.saveProgress(mergedProgress, discordUserId);
+                return mergedProgress;
             }
-        } catch {
-            // Silently use local progress on network issues
+        } catch (err) {
+            console.warn('[HybridScoreRepository] Cloud getProgress sync failed:', err);
         }
 
         return localProgress;
@@ -107,20 +136,53 @@ export class HybridScoreRepository implements IScoreRepository {
 
     public async getPersonalScores(discordUserId?: string): Promise<DetailedScoreRecord[]> {
         const effectiveId = discordUserId || 'guest';
-        // Try local first
         const localScores = await this.localRepo.getPersonalScores(effectiveId);
-        if (localScores.length > 0 || !discordUserId || discordUserId.startsWith('guest')) {
+
+        if (!discordUserId || discordUserId.startsWith('guest')) {
             return localScores;
         }
 
-        // If authenticated and local has no best scores yet, try fetching from cloud
+        // For authenticated users, fetch latest from cloud and reconcile
         try {
             const cloudScores = await this.moffyRepo.getPersonalScores(discordUserId);
             if (cloudScores && cloudScores.length > 0) {
-                return cloudScores;
+                const combined = [...localScores];
+                for (const cs of cloudScores) {
+                    const exists = combined.some(ls => ls.score === cs.score && ls.recorded_at === cs.recorded_at);
+                    if (!exists) {
+                        combined.push(cs);
+                    }
+                }
+                combined.sort((a, b) => {
+                    if (b.score !== a.score) return b.score - a.score;
+                    return new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime();
+                });
+                const best3 = combined.slice(0, 3);
+
+                // Update local storage so cache has the reconciled top 3
+                const currentLocal = await this.localRepo.getProgress(discordUserId);
+                if (currentLocal) {
+                    currentLocal.best_scores = best3;
+                    currentLocal.high_score = Math.max(currentLocal.high_score, best3[0]?.score || 0);
+                    await this.localRepo.saveProgress(currentLocal, discordUserId);
+                } else {
+                    await this.localRepo.saveProgress({
+                        high_score: best3[0]?.score || 0,
+                        last_score: best3[0]?.score || 0,
+                        level: best3[0]?.level || 1,
+                        max_speed: best3[0]?.max_speed || 1,
+                        items: best3[0]?.items || { onigiri: 0, icecream: 0, star: 0 },
+                        total_games_played: 1,
+                        best_scores: best3,
+                        user_name: best3[0]?.user_name || 'PLAYER',
+                        updated_at: best3[0]?.recorded_at || new Date().toISOString()
+                    }, discordUserId);
+                }
+
+                return best3;
             }
-        } catch {
-            // Fallback to local
+        } catch (err) {
+            console.warn('[HybridScoreRepository] Cloud personal scores fetch failed:', err);
         }
 
         return localScores;

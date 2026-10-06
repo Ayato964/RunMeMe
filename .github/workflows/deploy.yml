@@ -19,6 +19,10 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
+        env:
+          VITE_MOFFY_API_KEY: ${{ secrets.VITE_MOFFY_API_KEY }}
+          VITE_MOFFY_API_BASE_URL: https://moffy-profile-287701603412.asia-northeast1.run.app
+          VITE_AUTH_URL: https://googleaistudentambassador.github.io/IdentityLogInsystem/oauth.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
