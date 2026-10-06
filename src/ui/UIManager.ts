@@ -8,6 +8,8 @@ export class UIManager {
     private currentCategory: RankingCategory = 'personal';
     private currentDiscordUserId?: string;
     private tabsInitialized: boolean = false;
+    private gameOverTimers: number[] = [];
+    private slotIntervalId: number | null = null;
 
     constructor(scoreRepository?: IScoreRepository) {
         this.scoreRepository = scoreRepository;
@@ -162,70 +164,323 @@ export class UIManager {
         items: { onigiri: number; icecream: number; star: number },
         onCanReturnCallback: () => void
     ): number {
+        this.clearGameOverAnimations();
+
         const gameOverScreen = document.getElementById('game-over-screen');
+        const container = document.getElementById('game-over-container');
+        const charaEl = document.getElementById('game-over-character');
+        const msgEl = document.getElementById('game-over-message');
+        const itemsBox = document.getElementById('result-items-box');
+        const otherStats = document.getElementById('result-other-stats');
+        const buttonsContainer = document.getElementById('game-over-buttons-container');
         const finalScoreEl = document.getElementById('final-score');
-        const returnBtn = document.getElementById('return-title-btn');
+        const finalScoreBox = document.getElementById('final-score-box');
 
         const starBonus = stars * 200;
         const finalScore = baseScore + starBonus;
 
-        if (gameOverScreen && finalScoreEl) {
+        if (!gameOverScreen || !finalScoreEl) return finalScore;
+
+        // Reset elements to initial states
+        container?.classList.remove('animate-screen-shake');
+        finalScoreBox?.classList.remove('animate-slot-pop');
+        msgEl?.classList.remove('animate-drop-bounce');
+
+        if (charaEl) {
+            charaEl.className = "h-64 lg:h-96 object-contain z-10 transition-all duration-500 ease-out transform -translate-x-[200%] opacity-0";
+        }
+        if (msgEl) {
             const randomMsg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
-            const msgEl = document.getElementById('game-over-message');
-            if (msgEl) msgEl.innerText = randomMsg;
-
-            finalScoreEl.innerText = finalScore.toString();
-
-            const baseScoreEl = document.getElementById('base-score');
-            if (baseScoreEl) baseScoreEl.innerText = baseScore.toString();
-
-            const levelEl = document.getElementById('result-level');
-            if (levelEl) levelEl.innerText = level.toString();
-
-            const maxSpeedEl = document.getElementById('result-max-speed');
-            if (maxSpeedEl) maxSpeedEl.innerText = maxSpeed.toFixed(2) + 'x';
-
-            const onigiriEl = document.getElementById('count-onigiri');
-            if (onigiriEl) onigiriEl.innerText = items.onigiri.toString();
-
-            const icecreamEl = document.getElementById('count-icecream');
-            if (icecreamEl) icecreamEl.innerText = items.icecream.toString();
-
-            const starEl = document.getElementById('count-star');
-            if (starEl) starEl.innerText = items.star.toString();
-
-            const starCountEl = document.getElementById('star-count');
-            if (starCountEl) starCountEl.innerText = stars.toString();
-
-            const starBonusEl = document.getElementById('star-bonus');
-            if (starBonusEl) starBonusEl.innerText = '+' + starBonus.toString();
-
-            gameOverScreen.classList.remove('hidden');
-
-            if (returnBtn) returnBtn.classList.add('hidden');
+            msgEl.innerText = randomMsg;
+            msgEl.className = "absolute top-10 right-10 lg:right-0 bg-white text-black p-6 rounded-[2rem] rounded-bl-none text-xl lg:text-2xl font-bold border-4 border-black shadow-[8px_8px_0_rgba(0,0,0,0.5)] max-w-[200px] transform -translate-y-24 opacity-0 transition-all duration-300";
+        }
+        if (itemsBox) {
+            itemsBox.className = "bg-black/40 rounded-xl p-3 col-span-2 border-2 border-transparent transition-all duration-500 opacity-0 transform scale-75";
+        }
+        if (otherStats) {
+            otherStats.className = "col-span-2 grid grid-cols-2 gap-4 transition-all duration-500 opacity-0 transform translate-y-6";
+        }
+        if (buttonsContainer) {
+            buttonsContainer.className = "flex flex-col sm:flex-row gap-4 justify-center transition-all duration-300 opacity-0 pointer-events-none transform translate-y-4";
         }
 
-        setTimeout(() => {
-            onCanReturnCallback();
+        // Set static values
+        const baseScoreEl = document.getElementById('base-score');
+        if (baseScoreEl) baseScoreEl.innerText = baseScore.toString();
+        const levelEl = document.getElementById('result-level');
+        if (levelEl) levelEl.innerText = level.toString();
+        const maxSpeedEl = document.getElementById('result-max-speed');
+        if (maxSpeedEl) maxSpeedEl.innerText = maxSpeed.toFixed(2) + 'x';
+        const starCountEl = document.getElementById('star-count');
+        if (starCountEl) starCountEl.innerText = stars.toString();
+        const starBonusEl = document.getElementById('star-bonus');
+        if (starBonusEl) starBonusEl.innerText = '+' + starBonus.toString();
+
+        // Initialize items display at 0
+        const onigiriEl = document.getElementById('count-onigiri');
+        const icecreamEl = document.getElementById('count-icecream');
+        const starEl = document.getElementById('count-star');
+        if (onigiriEl) onigiriEl.innerText = '0';
+        if (icecreamEl) icecreamEl.innerText = '0';
+        if (starEl) starEl.innerText = '0';
+
+        gameOverScreen.classList.remove('hidden');
+
+        // ==========================================
+        // Step 1: Slot machine score roll & particles (0ms - 1000ms)
+        // ==========================================
+        this.runSlotAnimation(finalScore, finalScoreEl, finalScoreBox);
+
+        // ==========================================
+        // Step 2: Items fade-in & count-up & screen shake (1000ms - 1800ms)
+        // ==========================================
+        const timer1 = window.setTimeout(() => {
+            if (itemsBox) {
+                itemsBox.classList.remove('opacity-0', 'scale-75');
+                itemsBox.classList.add('opacity-100', 'scale-100');
+            }
+            this.animateNumberCount(onigiriEl, 0, items.onigiri, 500);
+            this.animateNumberCount(icecreamEl, 0, items.icecream, 500);
+            this.animateNumberCount(starEl, 0, items.star, 500);
+        }, 1050);
+        this.gameOverTimers.push(timer1);
+
+        const timer2 = window.setTimeout(() => {
+            // Screen Shake "ドンッ！"
+            if (container) {
+                container.classList.remove('animate-screen-shake');
+                void container.offsetWidth; // force reflow
+                container.classList.add('animate-screen-shake');
+            }
+        }, 1750);
+        this.gameOverTimers.push(timer2);
+
+        // ==========================================
+        // Step 3: Character slide-in & comment drop & dust (1800ms - 2500ms)
+        // ==========================================
+        const timer3 = window.setTimeout(() => {
+            if (charaEl) {
+                charaEl.classList.remove('-translate-x-[200%]', 'opacity-0');
+                charaEl.classList.add('translate-x-0', 'opacity-100');
+            }
+        }, 1850);
+        this.gameOverTimers.push(timer3);
+
+        const timer4 = window.setTimeout(() => {
+            this.spawnDustParticles();
+            if (msgEl) {
+                msgEl.classList.remove('-translate-y-24', 'opacity-0');
+                msgEl.classList.add('animate-drop-bounce');
+            }
+        }, 2200);
+        this.gameOverTimers.push(timer4);
+
+        // ==========================================
+        // Step 4: Other stats fade-in & buttons appear (2500ms - 3000ms)
+        // ==========================================
+        const timer5 = window.setTimeout(() => {
+            if (otherStats) {
+                otherStats.classList.remove('opacity-0', 'translate-y-6');
+                otherStats.classList.add('opacity-100', 'translate-y-0');
+            }
+        }, 2550);
+        this.gameOverTimers.push(timer5);
+
+        const timer6 = window.setTimeout(() => {
+            if (buttonsContainer) {
+                buttonsContainer.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+                buttonsContainer.classList.add('opacity-100', 'pointer-events-auto', 'translate-y-0');
+            }
+            const returnBtn = document.getElementById('return-title-btn');
             if (returnBtn) {
-                returnBtn.classList.remove('hidden');
                 returnBtn.classList.add('animate-bounce');
             }
+            onCanReturnCallback();
         }, 3000);
+        this.gameOverTimers.push(timer6);
 
         return finalScore;
     }
 
+    private runSlotAnimation(finalScore: number, finalScoreEl: HTMLElement, finalScoreBox: HTMLElement | null): void {
+        const targetStr = finalScore.toString();
+        const numDigits = targetStr.length;
+        const startTime = performance.now();
+        const duration = 1000;
+
+        let lockedDigits = 0;
+
+        this.slotIntervalId = window.setInterval(() => {
+            const elapsed = performance.now() - startTime;
+            const progress = Math.min(1, elapsed / duration);
+
+            // Calculate how many digits should be locked from left to right
+            const targetLocked = Math.min(numDigits, Math.floor(progress * (numDigits + 0.5)));
+
+            if (targetLocked > lockedDigits) {
+                for (let k = lockedDigits; k < targetLocked; k++) {
+                    this.spawnSparkleParticles(4);
+                }
+                lockedDigits = targetLocked;
+            }
+
+            let displayStr = '';
+            for (let i = 0; i < numDigits; i++) {
+                if (i < lockedDigits) {
+                    displayStr += targetStr[i];
+                } else {
+                    displayStr += Math.floor(Math.random() * 10).toString();
+                }
+            }
+            finalScoreEl.innerText = displayStr;
+
+            if (progress >= 1 && lockedDigits >= numDigits) {
+                if (this.slotIntervalId !== null) {
+                    clearInterval(this.slotIntervalId);
+                    this.slotIntervalId = null;
+                }
+                finalScoreEl.innerText = targetStr;
+                if (finalScoreBox) {
+                    finalScoreBox.classList.remove('animate-slot-pop');
+                    void finalScoreBox.offsetWidth;
+                    finalScoreBox.classList.add('animate-slot-pop');
+                }
+                this.spawnSparkleParticles(12);
+            }
+        }, 40);
+    }
+
+    private animateNumberCount(el: HTMLElement | null, start: number, target: number, duration: number): void {
+        if (!el) return;
+        if (target === 0) {
+            el.innerText = '0';
+            return;
+        }
+
+        const startTime = performance.now();
+        const step = (now: number) => {
+            const progress = Math.min(1, (now - startTime) / duration);
+            const current = Math.round(start + (target - start) * progress);
+            el.innerText = current.toString();
+            if (progress < 1) {
+                const animId = requestAnimationFrame(step);
+                this.gameOverTimers.push(animId);
+            } else {
+                el.innerText = target.toString();
+            }
+        };
+        const animId = requestAnimationFrame(step);
+        this.gameOverTimers.push(animId);
+    }
+
+    private spawnSparkleParticles(count: number = 6): void {
+        const container = document.getElementById('game-over-sparkle-container');
+        if (!container) return;
+
+        for (let i = 0; i < count; i++) {
+            const p = document.createElement('div');
+            const size = Math.floor(Math.random() * 12) + 8; // 8px - 20px
+            const left = Math.floor(Math.random() * 90) + 5; // 5% - 95%
+            const top = Math.floor(Math.random() * 90) + 5;
+            const colors = ['#fde047', '#f59e0b', '#fbbf24', '#ffffff'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+
+            p.className = "absolute rounded-full pointer-events-none animate-sparkle shadow-sm";
+            p.style.width = `${size}px`;
+            p.style.height = `${size}px`;
+            p.style.left = `${left}%`;
+            p.style.top = `${top}%`;
+            p.style.backgroundColor = color;
+
+            container.appendChild(p);
+            setTimeout(() => {
+                p.remove();
+            }, 600);
+        }
+    }
+
+    private spawnDustParticles(count: number = 10): void {
+        const container = document.getElementById('game-over-dust-container');
+        if (!container) return;
+
+        for (let i = 0; i < count; i++) {
+            const p = document.createElement('div');
+            const size = Math.floor(Math.random() * 14) + 8; // 8px - 22px
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * 40 + 20;
+            const tx = Math.cos(angle) * dist;
+            const ty = Math.sin(angle) * dist - 15; // slightly upward bias
+
+            p.className = "absolute rounded-full pointer-events-none animate-dust bg-white/70";
+            p.style.width = `${size}px`;
+            p.style.height = `${size}px`;
+            p.style.left = `calc(50% - ${size / 2}px)`;
+            p.style.top = `calc(50% - ${size / 2}px)`;
+            p.style.setProperty('--tx', `${tx}px`);
+            p.style.setProperty('--ty', `${ty}px`);
+
+            container.appendChild(p);
+            setTimeout(() => {
+                p.remove();
+            }, 700);
+        }
+    }
+
     public hideGameOverScreen(): void {
+        this.clearGameOverAnimations();
         const gameOverScreen = document.getElementById('game-over-screen');
         if (gameOverScreen) gameOverScreen.classList.add('hidden');
 
         const returnBtn = document.getElementById('return-title-btn');
         if (returnBtn) {
-            returnBtn.classList.add('hidden');
             returnBtn.classList.remove('animate-bounce');
         }
     }
+
+    private clearGameOverAnimations(): void {
+        if (this.slotIntervalId !== null) {
+            clearInterval(this.slotIntervalId);
+            this.slotIntervalId = null;
+        }
+        for (const t of this.gameOverTimers) {
+            clearTimeout(t);
+            cancelAnimationFrame(t);
+        }
+        this.gameOverTimers = [];
+
+        // Clear spawned particle elements
+        const sparkleLayer = document.getElementById('game-over-sparkle-container');
+        if (sparkleLayer) sparkleLayer.innerHTML = '';
+        const dustLayer = document.getElementById('game-over-dust-container');
+        if (dustLayer) dustLayer.innerHTML = '';
+    }
+
+    // ==========================================
+    // Tutorial Modal Management
+    // ==========================================
+    public showTutorial(): void {
+        const modal = document.getElementById('tutorial-modal');
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    public hideTutorial(): void {
+        const modal = document.getElementById('tutorial-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    public isTutorialVisible(): boolean {
+        const modal = document.getElementById('tutorial-modal');
+        return modal ? !modal.classList.contains('hidden') : false;
+    }
+
+    public isModalOpen(): boolean {
+        const tutorialModal = document.getElementById('tutorial-modal');
+        const rankingsModal = document.getElementById('rankings-screen');
+        const isTutorial = tutorialModal ? !tutorialModal.classList.contains('hidden') : false;
+        const isRankings = rankingsModal ? !rankingsModal.classList.contains('hidden') : false;
+        return isTutorial || isRankings;
+    }
+
 
     public async showRankings(
         isGameOver: boolean = false,

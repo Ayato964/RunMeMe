@@ -4,6 +4,8 @@ export interface InputCallbacks {
     onReturnToTitle: () => void;
     onShowRankings: () => void;
     onCloseRankings: () => void;
+    onShowTutorial?: () => void;
+    onCloseTutorial?: () => void;
     onLinkAccount?: () => void;
     onGuestLogin?: () => void;
     onLogout?: () => void;
@@ -16,6 +18,7 @@ export class InputManager {
     private canReturnToTitleState: () => boolean;
     private isStartScreenActive: () => boolean;
     private isAuthGateActive?: () => boolean;
+    private isModalActive?: () => boolean;
 
     constructor(
         canvas: HTMLCanvasElement,
@@ -23,7 +26,8 @@ export class InputManager {
         isGameOverState: () => boolean,
         canReturnToTitleState: () => boolean,
         isStartScreenActive: () => boolean,
-        isAuthGateActive?: () => boolean
+        isAuthGateActive?: () => boolean,
+        isModalActive?: () => boolean
     ) {
         this.canvas = canvas;
         this.callbacks = callbacks;
@@ -31,6 +35,7 @@ export class InputManager {
         this.canReturnToTitleState = canReturnToTitleState;
         this.isStartScreenActive = isStartScreenActive;
         this.isAuthGateActive = isAuthGateActive;
+        this.isModalActive = isModalActive;
 
         this.setupKeyboard();
         this.setupTouch();
@@ -39,10 +44,21 @@ export class InputManager {
 
     private setupKeyboard(): void {
         window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.callbacks.onCloseTutorial?.();
+                this.callbacks.onCloseRankings();
+                return;
+            }
+
             if (e.code === 'Space') {
                 const target = e.target as HTMLElement | null;
                 // Never intercept space when user is typing in an input field
                 if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                    return;
+                }
+
+                // Never intercept space or start game if a modal (tutorial or rankings) is open!
+                if (this.isModalActive && this.isModalActive()) {
                     return;
                 }
 
@@ -133,6 +149,19 @@ export class InputManager {
         document.getElementById('return-title-btn')?.addEventListener('click', () => {
             this.callbacks.onReturnToTitle();
         });
+
+        // Tutorial modal buttons
+        document.getElementById('tutorial-btn')?.addEventListener('click', () => {
+            this.callbacks.onShowTutorial?.();
+        });
+
+        document.getElementById('close-tutorial-x-btn')?.addEventListener('click', () => {
+            this.callbacks.onCloseTutorial?.();
+        });
+
+        document.getElementById('close-tutorial-bottom-btn')?.addEventListener('click', () => {
+            this.callbacks.onCloseTutorial?.();
+        });
     }
 
     public getPlayerName(): string {
@@ -140,3 +169,4 @@ export class InputManager {
         return (input?.value.trim().toUpperCase()) || 'PLAYER';
     }
 }
+

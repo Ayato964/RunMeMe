@@ -161,6 +161,12 @@ export class Game {
                 onCloseRankings: () => {
                     this.uiManager.hideRankingsScreen();
                 },
+                onShowTutorial: () => {
+                    this.uiManager.showTutorial();
+                },
+                onCloseTutorial: () => {
+                    this.uiManager.hideTutorial();
+                },
                 onLinkAccount: () => {
                     this.authService.login();
                 },
@@ -178,7 +184,8 @@ export class Game {
             () => this.isGameOver,
             () => this.canReturnToTitle,
             () => this.uiManager.isStartScreenVisible(),
-            () => !this.authService.isAuthenticated()
+            () => !this.authService.isAuthenticated(),
+            () => this.uiManager.isModalOpen()
         );
     }
 
@@ -228,6 +235,7 @@ export class Game {
         this.player = new Player(this.config, this.assetManager, 100, LOGICAL_HEIGHT - 300);
 
         this.uiManager.hideRankingsScreen();
+        this.uiManager.hideTutorial();
         this.uiManager.hideStartScreen();
         this.uiManager.hideGameOverScreen();
         this.uiManager.showMobileControls();
