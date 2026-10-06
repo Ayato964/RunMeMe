@@ -1,3 +1,17 @@
+export interface DetailedScoreRecord {
+    score: number;
+    level: number;
+    max_speed: number;
+    items: {
+        onigiri: number;
+        icecream: number;
+        star: number;
+    };
+    recorded_at: string; // ISO 8601
+    user_name: string;
+    discord_user_id?: string;
+}
+
 export interface GameProgress {
     high_score: number;
     last_score: number;
@@ -11,6 +25,7 @@ export interface GameProgress {
     total_games_played: number;
     user_name: string;
     updated_at: string;
+    best_scores?: DetailedScoreRecord[];
 }
 
 export interface ScoreEntry {
@@ -28,6 +43,8 @@ export interface ScoreEntry {
     is_ambassador?: boolean;
     date?: string;
 }
+
+export type RankingCategory = 'personal' | 'global' | 'weekly';
 
 export interface IScoreRepository {
     /**
@@ -49,4 +66,20 @@ export interface IScoreRepository {
      * Records an individual score entry.
      */
     saveScore(score: ScoreEntry): Promise<void>;
+
+    /**
+     * Retrieves top 3 detailed personal records for a user.
+     */
+    getPersonalScores(discordUserId?: string): Promise<DetailedScoreRecord[]>;
+
+    /**
+     * Retrieves global all-time rankings aggregated across all player accounts.
+     */
+    getGlobalScores(): Promise<ScoreEntry[]>;
+
+    /**
+     * Retrieves weekly rankings (within the last 7 days) aggregated across all player accounts.
+     */
+    getWeeklyScores(): Promise<ScoreEntry[]>;
 }
+

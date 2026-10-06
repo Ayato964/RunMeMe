@@ -1,4 +1,4 @@
-import type { GameProgress, IScoreRepository, ScoreEntry } from './IScoreRepository';
+import type { DetailedScoreRecord, GameProgress, IScoreRepository, ScoreEntry } from './IScoreRepository';
 import { MOFFY_API_BASE_URL, MOFFY_API_KEY, GAME_ID } from '../../config';
 
 export class MoffyScoreRepository implements IScoreRepository {
@@ -96,4 +96,24 @@ export class MoffyScoreRepository implements IScoreRepository {
     public async saveScore(_score: ScoreEntry): Promise<void> {
         // Individual scores are folded into saveProgress
     }
+
+    public async getPersonalScores(discordUserId?: string): Promise<DetailedScoreRecord[]> {
+        if (!discordUserId || discordUserId.startsWith('guest')) {
+            return [];
+        }
+        const progress = await this.getProgress(discordUserId);
+        if (progress && Array.isArray(progress.best_scores)) {
+            return progress.best_scores.slice(0, 3);
+        }
+        return [];
+    }
+
+    public async getGlobalScores(): Promise<ScoreEntry[]> {
+        return [];
+    }
+
+    public async getWeeklyScores(): Promise<ScoreEntry[]> {
+        return [];
+    }
 }
+

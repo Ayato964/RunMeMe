@@ -12,7 +12,7 @@ import { UIManager } from './ui/UIManager';
 import type { GamePlayContext } from './domain/items/ItemStrategy';
 import type { IAuthService } from './domain/auth/IAuthService';
 import { MoffyAuthService } from './domain/auth/MoffyAuthService';
-import type { IScoreRepository } from './domain/score/IScoreRepository';
+import type { IScoreRepository, RankingCategory } from './domain/score/IScoreRepository';
 import { HybridScoreRepository as GameScoreRepository } from './domain/score/HybridScoreRepository';
 
 interface Particle {
@@ -587,7 +587,10 @@ export class Game {
         }
     }
 
-    public async showRankings(): Promise<void> {
-        await this.uiManager.showRankings(this.isGameOver, Math.floor(this.score));
+    public async showRankings(category?: RankingCategory): Promise<void> {
+        const currentUser = this.authService.getCurrentUser();
+        const discordUserId = (!currentUser || currentUser.is_guest) ? undefined : currentUser.discord_user_id;
+        await this.uiManager.showRankings(this.isGameOver, Math.floor(this.score), category, discordUserId);
     }
 }
+

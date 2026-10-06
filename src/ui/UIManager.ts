@@ -1,10 +1,13 @@
 import MESSAGES from '../game_over_messages.json';
 import type { AuthUser } from '../domain/auth/IAuthService';
-import type { IScoreRepository, ScoreEntry } from '../domain/score/IScoreRepository';
+import type { DetailedScoreRecord, IScoreRepository, RankingCategory, ScoreEntry } from '../domain/score/IScoreRepository';
 
 export class UIManager {
     private loadingInterval: number | null = null;
     private scoreRepository?: IScoreRepository;
+    private currentCategory: RankingCategory = 'personal';
+    private currentDiscordUserId?: string;
+    private tabsInitialized: boolean = false;
 
     constructor(scoreRepository?: IScoreRepository) {
         this.scoreRepository = scoreRepository;
@@ -13,6 +16,7 @@ export class UIManager {
     public setScoreRepository(scoreRepository: IScoreRepository): void {
         this.scoreRepository = scoreRepository;
     }
+
 
     public showLoading(): void {
         const loadingScreen = document.getElementById('loading-screen');
@@ -223,62 +227,244 @@ export class UIManager {
         }
     }
 
-    public async showRankings(isGameOver: boolean = false, score?: number): Promise<void> {
+    public async showRankings(
+        isGameOver: boolean = false,
+        score?: number,
+        defaultCategory?: RankingCategory,
+        discordUserId?: string
+    ): Promise<void> {
         const rankingsEl = document.getElementById('rankings-screen');
-        const rankingsList = document.getElementById('rankings-list');
-        if (!rankingsEl || !rankingsList) return;
+        if (!rankingsEl) return;
 
-        rankingsList.innerHTML = '<div class="text-4xl font-black text-white animate-pulse">LOADING...</div>';
-        rankingsEl.classList.remove('hidden');
+        this.currentDiscordUserId = discordUserId;
+        this.initRankingTabs();
+
+        const titleEl = document.getElementById('rankings-title');
+        const subtitleEl = document.getElementById('rankings-subtitle');
 
         if (isGameOver) {
-            const title = document.createElement('h2');
-            title.className = "text-6xl font-black text-red-500 mb-4 drop-shadow-[4px_4px_0_#000] transform -rotate-3";
-            title.innerText = "GAME OVER";
-            rankingsList.innerHTML = '';
-            rankingsList.appendChild(title);
-
-            const scoreDisplay = document.createElement('div');
-            scoreDisplay.className = "text-4xl font-bold text-white mb-8 drop-shadow-[2px_2px_0_#000]";
-            scoreDisplay.innerText = `SCORE: ${score !== undefined ? score : 0}`;
-            rankingsList.appendChild(scoreDisplay);
+            if (titleEl) {
+                titleEl.innerText = "GAME OVER";
+                titleEl.className = "text-5xl sm:text-6xl font-black text-red-500 drop-shadow-[4px_4px_0_#000] transform -rotate-2 tracking-wider";
+            }
+            if (subtitleEl) {
+                subtitleEl.innerText = `SCORE: ${score !== undefined ? score : 0}`;
+                subtitleEl.classList.remove('hidden');
+            }
         } else {
-            rankingsList.innerHTML = '<h2 class="text-6xl font-black text-yellow-400 mb-8 drop-shadow-[4px_4px_0_#000] transform -rotate-3">RANKING</h2>';
+            if (titleEl) {
+                titleEl.innerText = "RANKING";
+                titleEl.className = "text-5xl sm:text-6xl font-black text-yellow-400 drop-shadow-[4px_4px_0_#000] transform -rotate-2 tracking-wider";
+            }
+            if (subtitleEl) {
+                subtitleEl.classList.add('hidden');
+            }
         }
 
-        let scores: ScoreEntry[] = [];
-        if (this.scoreRepository) {
-            scores = await this.scoreRepository.getScores();
+        rankingsEl.classList.remove('hidden');
+
+        // Choose category: Game over defaults to personal best, title screen defaults to global
+        const initialCategory: RankingCategory = defaultCategory || (isGameOver ? 'personal' : 'global');
+        await this.switchRankingCategory(initialCategory);
+    }
+
+    private initRankingTabs(): void {
+        if (this.tabsInitialized) return;
+        this.tabsInitialized = true;
+
+        const myBestBtn = document.getElementById('rankings-tab-mybest');
+        const globalBtn = document.getElementById('rankings-tab-global');
+        const weeklyBtn = document.getElementById('rankings-tab-weekly');
+
+        myBestBtn?.addEventListener('click', () => {
+            void this.switchRankingCategory('personal');
+        });
+        globalBtn?.addEventListener('click', () => {
+            void this.switchRankingCategory('global');
+        });
+        weeklyBtn?.addEventListener('click', () => {
+            void this.switchRankingCategory('weekly');
+        });
+    }
+
+    public async switchRankingCategory(category: RankingCategory): Promise<void> {
+        this.currentCategory = category;
+
+        const myBestBtn = document.getElementById('rankings-tab-mybest');
+        const globalBtn = document.getElementById('rankings-tab-global');
+        const weeklyBtn = document.getElementById('rankings-tab-weekly');
+        const noticeEl = document.getElementById('rankings-category-notice');
+
+        const activeClass = "bg-yellow-400 text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-0.5";
+        const inactiveClass = "bg-white/80 text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-white";
+
+        const updateBtn = (btn: HTMLElement | null, isActive: boolean) => {
+            if (!btn) return;
+            if (isActive) {
+                btn.className = `flex-1 py-2 sm:py-2.5 px-2 border-4 border-black rounded-xl text-base sm:text-lg font-black transition-all cursor-pointer ${activeClass}`;
+            } else {
+                btn.className = `flex-1 py-2 sm:py-2.5 px-2 border-4 border-black rounded-xl text-base sm:text-lg font-black transition-all cursor-pointer ${inactiveClass}`;
+            }
+        };
+
+        updateBtn(myBestBtn, category === 'personal');
+        updateBtn(globalBtn, category === 'global');
+        updateBtn(weeklyBtn, category === 'weekly');
+
+        if (noticeEl) {
+            if (category === 'personal') {
+                noticeEl.innerText = "TOP 3 PERSONAL RECORDS (SAVED IN CLOUD & LOCAL)";
+            } else if (category === 'global') {
+                noticeEl.innerText = "ALL-TIME GLOBAL TOP PLAYERS";
+            } else {
+                noticeEl.innerText = "THIS WEEK'S TOP PLAYERS (LAST 7 DAYS)";
+            }
         }
+
+        await this.renderCategoryList();
+    }
+
+    private async renderCategoryList(): Promise<void> {
+        const rankingsList = document.getElementById('rankings-list');
+        if (!rankingsList) return;
+
+        rankingsList.innerHTML = '<div class="text-3xl font-black text-white py-8 animate-pulse">LOADING...</div>';
 
         const listContainer = document.createElement('div');
-        listContainer.className = "w-full max-w-2xl bg-white/90 border-4 border-black rounded-xl p-6 shadow-[8px_8px_0_#000] transform rotate-1";
+        listContainer.className = "w-full max-w-2xl mx-auto bg-white/95 border-4 border-black rounded-xl p-4 sm:p-6 shadow-[8px_8px_0_#000] text-black";
 
-        if (scores.length === 0) {
-            listContainer.innerHTML = '<div class="text-xl font-bold text-gray-700 py-4">まだスコアが記録されていません！</div>';
-        } else {
-            listContainer.innerHTML = scores.map((s, i) => `
-                <div class="flex justify-between items-center mb-4 border-b-2 border-dashed border-gray-400 pb-2 last:border-0">
-                    <div class="flex items-center gap-4">
-                        <span class="text-3xl font-black ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-500' : i === 2 ? 'text-orange-600' : 'text-black'} drop-shadow-sm">#${i + 1}</span> 
-                        <div class="flex flex-col text-left">
-                            <span class="text-2xl font-bold text-gray-800 truncate max-w-[200px]">${this.escapeHtml(s.name)}</span>
-                            <span class="text-xs font-bold text-gray-500">Lv.${s.level || 1} | Max Speed: ${(s.max_speed || 1.0).toFixed(2)}x</span>
-                        </div>
-                    </div>
-                    <div class="flex flex-col items-end">
-                        <span class="text-3xl font-black text-pink-500 drop-shadow-sm">${s.score}</span>
-                        <div class="flex gap-1 text-xs text-gray-600">
-                            <span>🍙${s.items?.onigiri || 0}</span>
-                            <span>🍦${s.items?.icecream || 0}</span>
-                            <span>⭐${s.items?.star || 0}</span>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
+        if (!this.scoreRepository) {
+            listContainer.innerHTML = '<div class="text-xl font-bold text-gray-700 py-4">Score repository not available.</div>';
+            rankingsList.innerHTML = '';
+            rankingsList.appendChild(listContainer);
+            return;
         }
 
+        if (this.currentCategory === 'personal') {
+            const records: DetailedScoreRecord[] = await this.scoreRepository.getPersonalScores(this.currentDiscordUserId);
+            if (records.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="py-6 text-center">
+                        <div class="text-xl font-black text-gray-800 mb-2">NO PERSONAL RECORDS YET</div>
+                        <div class="text-sm font-bold text-gray-500">Play a game to record your personal best score!</div>
+                    </div>
+                `;
+            } else {
+                listContainer.innerHTML = records.map((r, i) => {
+                    const rankColor = i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-500' : 'text-amber-700';
+                    const rankLabel = `#${i + 1}`;
+                    const formattedDate = this.formatDate(r.recorded_at);
+
+                    return `
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between py-3 border-b-2 border-dashed border-gray-300 last:border-0 gap-2">
+                            <div class="flex items-center gap-4 text-left">
+                                <span class="text-4xl font-black ${rankColor} drop-shadow-sm w-12 text-center">${rankLabel}</span>
+                                <div class="flex flex-col">
+                                    <div class="flex items-baseline gap-2">
+                                        <span class="text-2xl font-black text-gray-900">${this.escapeHtml(r.user_name)}</span>
+                                        ${formattedDate ? `<span class="text-xs font-mono font-bold text-gray-500">${this.escapeHtml(formattedDate)}</span>` : ''}
+                                    </div>
+                                    <span class="text-xs font-bold text-gray-600">Lv.${r.level} | Max Speed: ${r.max_speed.toFixed(2)}x</span>
+                                </div>
+                            </div>
+                            <div class="flex sm:flex-col items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-200">
+                                <span class="text-3xl font-black text-pink-500 drop-shadow-sm">${r.score}</span>
+                                <div class="flex gap-2 text-xs font-bold text-gray-600">
+                                    <span>🍙${r.items.onigiri}</span>
+                                    <span>🍦${r.items.icecream}</span>
+                                    <span>⭐${r.items.star}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        } else if (this.currentCategory === 'global') {
+            const scores: ScoreEntry[] = await this.scoreRepository.getGlobalScores();
+            if (scores.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="py-6 text-center">
+                        <div class="text-xl font-black text-gray-800 mb-2">NO GLOBAL SCORES YET</div>
+                        <div class="text-sm font-bold text-gray-500">Be the first to record a score on the leaderboard!</div>
+                    </div>
+                `;
+            } else {
+                listContainer.innerHTML = scores.map((s, i) => {
+                    const rankColor = i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-500' : i === 2 ? 'text-amber-700' : 'text-black';
+                    return `
+                        <div class="flex justify-between items-center py-2.5 border-b-2 border-dashed border-gray-300 last:border-0">
+                            <div class="flex items-center gap-3 text-left">
+                                <span class="text-2xl font-black ${rankColor} w-10 text-center">#${i + 1}</span>
+                                <div class="flex flex-col">
+                                    <span class="text-lg sm:text-xl font-black text-gray-800 truncate max-w-[180px] sm:max-w-[240px]">${this.escapeHtml(s.name)}</span>
+                                    <span class="text-xs font-bold text-gray-500">Lv.${s.level || 1} | Max Speed: ${(s.max_speed || 1.0).toFixed(2)}x</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-2xl sm:text-3xl font-black text-pink-500">${s.score}</span>
+                                <div class="flex gap-1.5 text-xs text-gray-600 font-bold">
+                                    <span>🍙${s.items?.onigiri || 0}</span>
+                                    <span>🍦${s.items?.icecream || 0}</span>
+                                    <span>⭐${s.items?.star || 0}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        } else {
+            // Weekly
+            const scores: ScoreEntry[] = await this.scoreRepository.getWeeklyScores();
+            if (scores.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="py-6 text-center">
+                        <div class="text-xl font-black text-gray-800 mb-2">NO WEEKLY SCORES YET</div>
+                        <div class="text-sm font-bold text-gray-500">No plays recorded within the last 7 days. Be the first!</div>
+                    </div>
+                `;
+            } else {
+                listContainer.innerHTML = scores.map((s, i) => {
+                    const rankColor = i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-500' : i === 2 ? 'text-amber-700' : 'text-black';
+                    const formattedDate = this.formatDate(s.date);
+                    return `
+                        <div class="flex justify-between items-center py-2.5 border-b-2 border-dashed border-gray-300 last:border-0">
+                            <div class="flex items-center gap-3 text-left">
+                                <span class="text-2xl font-black ${rankColor} w-10 text-center">#${i + 1}</span>
+                                <div class="flex flex-col">
+                                    <div class="flex items-baseline gap-2">
+                                        <span class="text-lg sm:text-xl font-black text-gray-800 truncate max-w-[160px] sm:max-w-[220px]">${this.escapeHtml(s.name)}</span>
+                                        ${formattedDate ? `<span class="text-xs font-mono font-bold text-gray-400">${this.escapeHtml(formattedDate)}</span>` : ''}
+                                    </div>
+                                    <span class="text-xs font-bold text-gray-500">Lv.${s.level || 1} | Max Speed: ${(s.max_speed || 1.0).toFixed(2)}x</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-2xl sm:text-3xl font-black text-pink-500">${s.score}</span>
+                                <div class="flex gap-1.5 text-xs text-gray-600 font-bold">
+                                    <span>🍙${s.items?.onigiri || 0}</span>
+                                    <span>🍦${s.items?.icecream || 0}</span>
+                                    <span>⭐${s.items?.star || 0}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        rankingsList.innerHTML = '';
         rankingsList.appendChild(listContainer);
+    }
+
+    private formatDate(dateStr?: string): string {
+        if (!dateStr) return '';
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return '';
+            return `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
+        } catch {
+            return '';
+        }
     }
 
     public hideRankingsScreen(): void {
