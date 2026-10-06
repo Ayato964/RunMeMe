@@ -12,6 +12,7 @@ export class StageManager {
     private chunkQueue: ChunkDef[] = [];
     private testStage: ChunkDef | null = null;
     private testStagePlaced: boolean = false;
+    private currentSpeedMultiplier: number = 1.0;
 
     private stageRepository: IStageRepository;
     private assetManager: IAssetManager;
@@ -33,6 +34,7 @@ export class StageManager {
         this.isFetching = false;
         this.chunkQueue = [];
         this.testStagePlaced = false;
+        this.currentSpeedMultiplier = 1.0;
 
         // Start with flat ground chunks from repository
         const startChunk = this.stageRepository.getStartStage();
@@ -51,6 +53,7 @@ export class StageManager {
     }
 
     public update(dt: number, speedMultiplier: number, scrollSpeed: number): void {
+        this.currentSpeedMultiplier = speedMultiplier;
         const moveAmount = scrollSpeed * speedMultiplier * (dt / 16);
         this.totalDistance += moveAmount;
 
@@ -169,8 +172,9 @@ export class StageManager {
             }
 
             if (el.type === 'platform') {
-                const numDecorations = Math.floor(Math.random() * 3);
-                for (let i = 0; i < numDecorations; i++) {
+                const blockType = el.blockType || 'grass';
+                // Only spawn flowers on grass blocks, and reduce generation frequency (25% chance of 1 flower)
+                if (blockType === 'grass' && Math.random() < 0.25) {
                     const decoWidth = 50;
                     const decoHeight = 50;
                     if (el.width > decoWidth) {
@@ -204,7 +208,10 @@ export class StageManager {
                         if (rand < 0.01) {
                             itemType = 'star';
                         } else if (rand < 0.03) {
-                            itemType = 'onigiri';
+                            // Onigiri only spawns when speed multiplier is >= 1.5x
+                            if (this.currentSpeedMultiplier >= 1.5) {
+                                itemType = 'onigiri';
+                            }
                         } else if (rand < 0.23) {
                             itemType = 'icecream';
                         }
