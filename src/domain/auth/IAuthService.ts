@@ -2,6 +2,8 @@ export interface AuthUser {
     discord_user_id: string;
     name: string | null;
     nickname: string | null;
+    display_name?: string | null;
+    role?: 'guest' | 'ambassador' | 'bureau' | 'admin';
     photo_url: string | null;
     is_ambassador?: boolean;
     is_guest: boolean;

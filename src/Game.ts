@@ -569,7 +569,7 @@ export class Game {
         );
 
         const currentUser = this.authService.getCurrentUser();
-        const playerName = this.inputManager.getPlayerName() || currentUser?.nickname || currentUser?.name || 'PLAYER';
+        const playerName = this.inputManager.getPlayerName() || currentUser?.display_name || currentUser?.nickname || currentUser?.name || 'PLAYER';
         const discordUserId = (!currentUser || currentUser.is_guest) ? undefined : currentUser.discord_user_id;
 
         this.scoreRepository.saveProgress({

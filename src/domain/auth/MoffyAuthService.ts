@@ -32,6 +32,13 @@ export class MoffyAuthService implements IAuthService {
                     this.logout();
                     return;
                 }
+                // Normalize backward-compatible fields
+                if (!session.user.display_name) {
+                    session.user.display_name = session.user.nickname || session.user.name || session.user.discord_user_id;
+                }
+                if (!session.user.role) {
+                    session.user.role = session.user.is_ambassador ? 'ambassador' : 'guest';
+                }
                 this.inMemoryUser = session.user;
                 this.inMemoryToken = session.token;
             }
@@ -85,6 +92,8 @@ export class MoffyAuthService implements IAuthService {
             discord_user_id: 'guest_' + Math.random().toString(36).substring(2, 9),
             name: 'Guest Player',
             nickname: 'Guest',
+            display_name: 'Guest',
+            role: 'guest',
             photo_url: null,
             is_ambassador: false,
             is_guest: true
@@ -161,14 +170,30 @@ export class MoffyAuthService implements IAuthService {
             return false;
         }
 
-        const rawName = params.get('nickname') || params.get('name') || discordUserId;
+        const rawName = params.get('name') || discordUserId;
+        const rawNickname = params.get('nickname') || null;
+        const rawDisplayName = params.get('display_name') || rawNickname || rawName;
         const photoUrl = params.get('photo_url') || params.get('default_photo_url') || null;
-        const isAmbassador = params.get('is_ambassador') === 'true';
+        
+        // Parse role and ambassador status according to MoffyProfile API specifications
+        const rawRole = params.get('role');
+        const isAmbassadorParam = params.get('is_ambassador') === 'true';
+        let validatedRole: 'guest' | 'ambassador' | 'bureau' | 'admin' = 'guest';
+
+        if (rawRole === 'admin' || rawRole === 'bureau' || rawRole === 'ambassador') {
+            validatedRole = rawRole;
+        } else if (isAmbassadorParam) {
+            validatedRole = 'ambassador';
+        }
+
+        const isAmbassador = validatedRole === 'ambassador' || validatedRole === 'bureau' || validatedRole === 'admin' || isAmbassadorParam;
 
         const user: AuthUser = {
             discord_user_id: discordUserId,
-            name: params.get('name') || discordUserId,
-            nickname: params.get('nickname') || rawName,
+            name: rawName,
+            nickname: rawNickname,
+            display_name: rawDisplayName,
+            role: validatedRole,
             photo_url: photoUrl,
             is_ambassador: isAmbassador,
             is_guest: false

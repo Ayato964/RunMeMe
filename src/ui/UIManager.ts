@@ -119,11 +119,12 @@ export class UIManager {
 
         badgeEl.classList.remove('hidden');
 
-        const displayName = user.nickname || user.name || (user.is_guest ? 'Guest Player' : user.discord_user_id);
-        if (nameEl) nameEl.innerText = displayName;
+        // Prioritize display_name according to MoffyProfile API specification
+        const displayName = user.display_name || user.nickname || user.name || (user.is_guest ? 'Guest Player' : user.discord_user_id);
+        if (nameEl) nameEl.textContent = displayName;
 
         if (discordIdEl) {
-            discordIdEl.innerText = user.is_guest ? 'ゲストモード' : `@${user.discord_user_id}`;
+            discordIdEl.textContent = user.is_guest ? 'ゲストモード' : `@${user.discord_user_id}`;
         }
 
         if (avatarEl) {
@@ -134,7 +135,18 @@ export class UIManager {
         }
 
         if (ambassadorTag) {
-            if (user.is_ambassador) {
+            const role = user.role;
+            if (role === 'admin') {
+                ambassadorTag.textContent = '★ ADMIN';
+                ambassadorTag.className = 'px-1.5 py-0.5 bg-purple-600 text-white border border-black rounded text-[10px] font-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]';
+                ambassadorTag.classList.remove('hidden');
+            } else if (role === 'bureau') {
+                ambassadorTag.textContent = '◆ BUREAU';
+                ambassadorTag.className = 'px-1.5 py-0.5 bg-blue-500 text-white border border-black rounded text-[10px] font-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]';
+                ambassadorTag.classList.remove('hidden');
+            } else if (role === 'ambassador' || user.is_ambassador) {
+                ambassadorTag.textContent = '✦ AMBASSADOR';
+                ambassadorTag.className = 'px-1.5 py-0.5 bg-yellow-400 text-black border border-black rounded text-[10px] font-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]';
                 ambassadorTag.classList.remove('hidden');
             } else {
                 ambassadorTag.classList.add('hidden');
