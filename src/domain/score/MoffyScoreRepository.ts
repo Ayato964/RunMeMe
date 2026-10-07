@@ -108,12 +108,55 @@ export class MoffyScoreRepository implements IScoreRepository {
         return [];
     }
 
-    public async getGlobalScores(): Promise<ScoreEntry[]> {
-        return [];
+    public async getGlobalScores(limit: number = 50): Promise<ScoreEntry[]> {
+        return this.fetchLeaderboard('global', limit);
     }
 
-    public async getWeeklyScores(): Promise<ScoreEntry[]> {
-        return [];
+    public async getWeeklyScores(limit: number = 50): Promise<ScoreEntry[]> {
+        return this.fetchLeaderboard('weekly', limit);
+    }
+
+    private async fetchLeaderboard(type: 'global' | 'weekly', limit: number = 50): Promise<ScoreEntry[]> {
+        try {
+            const headers: Record<string, string> = {};
+            if (this.apiKey) {
+                headers['X-API-Key'] = this.apiKey;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            const url = `${this.baseUrl}/api/v1/games/${encodeURIComponent(this.gameId)}/leaderboard?type=${encodeURIComponent(type)}&limit=${limit}`;
+            const res = await fetch(url, {
+                method: 'GET',
+                headers,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (!res.ok) {
+                console.warn(`[MoffyScoreRepository] Fetch leaderboard (${type}) returned status ${res.status}`);
+                return [];
+            }
+
+            const json = await res.json();
+            if (json && Array.isArray(json.data)) {
+                return json.data.map((item: any) => ({
+                    name: item.user_name || 'ANONYMOUS',
+                    score: typeof item.score === 'number' ? item.score : 0,
+                    level: item.extra?.level || 1,
+                    max_speed: typeof item.extra?.max_speed === 'number' ? item.extra.max_speed : 1.0,
+                    items: item.extra?.items || { onigiri: 0, icecream: 0, star: 0 },
+                    discord_user_id: item.discord_user_id,
+                    photo_url: item.avatar_url || null,
+                    date: item.updated_at || undefined
+                }));
+            }
+            return [];
+        } catch (e) {
+            console.warn(`[MoffyScoreRepository] Leaderboard (${type}) network failure:`, e);
+            return [];
+        }
     }
 }
 

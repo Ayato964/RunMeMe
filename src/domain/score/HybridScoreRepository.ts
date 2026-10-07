@@ -189,10 +189,26 @@ export class HybridScoreRepository implements IScoreRepository {
     }
 
     public async getGlobalScores(): Promise<ScoreEntry[]> {
+        try {
+            const cloudScores = await this.moffyRepo.getGlobalScores();
+            if (cloudScores && cloudScores.length > 0) {
+                return cloudScores;
+            }
+        } catch (err) {
+            console.warn('[HybridScoreRepository] Cloud global leaderboard fetch failed:', err);
+        }
         return this.localRepo.getGlobalScores();
     }
 
     public async getWeeklyScores(): Promise<ScoreEntry[]> {
+        try {
+            const cloudScores = await this.moffyRepo.getWeeklyScores();
+            if (cloudScores && cloudScores.length > 0) {
+                return cloudScores;
+            }
+        } catch (err) {
+            console.warn('[HybridScoreRepository] Cloud weekly leaderboard fetch failed:', err);
+        }
         return this.localRepo.getWeeklyScores();
     }
 }

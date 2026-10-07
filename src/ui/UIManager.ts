@@ -650,6 +650,7 @@ export class UIManager {
                         <div class="flex justify-between items-center py-2.5 border-b-2 border-dashed border-gray-300 last:border-0">
                             <div class="flex items-center gap-3 text-left">
                                 <span class="text-2xl font-black ${rankColor} w-10 text-center">#${i + 1}</span>
+                                ${s.photo_url ? `<img src="${this.getSafeAvatarUrl(s.photo_url)}" alt="avatar" class="w-9 h-9 rounded-full border-2 border-black object-cover shrink-0" onerror="this.style.display='none'" />` : ''}
                                 <div class="flex flex-col">
                                     <span class="text-lg sm:text-xl font-black text-gray-800 truncate max-w-[180px] sm:max-w-[240px]">${this.escapeHtml(s.name)}</span>
                                     <span class="text-xs font-bold text-gray-500">Lv.${s.level || 1} | Max Speed: ${(s.max_speed || 1.0).toFixed(2)}x</span>
@@ -685,6 +686,7 @@ export class UIManager {
                         <div class="flex justify-between items-center py-2.5 border-b-2 border-dashed border-gray-300 last:border-0">
                             <div class="flex items-center gap-3 text-left">
                                 <span class="text-2xl font-black ${rankColor} w-10 text-center">#${i + 1}</span>
+                                ${s.photo_url ? `<img src="${this.getSafeAvatarUrl(s.photo_url)}" alt="avatar" class="w-9 h-9 rounded-full border-2 border-black object-cover shrink-0" onerror="this.style.display='none'" />` : ''}
                                 <div class="flex flex-col">
                                     <div class="flex items-baseline gap-2">
                                         <span class="text-lg sm:text-xl font-black text-gray-800 truncate max-w-[160px] sm:max-w-[220px]">${this.escapeHtml(s.name)}</span>
